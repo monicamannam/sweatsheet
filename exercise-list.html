@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>SweatSheet — Exercise List</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: #f4f7fb;
+    color: #1a1a2e;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  /* ── HEADER (shared) ── */
+  header {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 60px 20px 40px;
+    gap: 12px;
+    background: #fff;
+    border-bottom: 1px solid #dde6f0;
+  }
+  .logo-wrap {
+    width: 1126px;
+    height: 614px;
+    border-radius: 22px;
+    background: #eaf1fb;
+    border: 1px solid #c8d9ef;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+  .logo-wrap img { width: 100%; height: 100%; object-fit: contain; }
+  .logo-fallback {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 28px;
+    letter-spacing: 2px;
+    color: #6c3fcf;
+  }
+  .site-name {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 52px;
+    letter-spacing: 4px;
+    color: #1a1a2e;
+    line-height: 1;
+  }
+  .tagline {
+    font-size: 13px;
+    color: #8b6bbf;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+  }
+
+  /* ── NAV (shared) ── */
+  nav {
+    width: 100%;
+    background: #6c3fcf;
+    display: flex;
+    justify-content: center;
+  }
+  nav a {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 18px 44px;
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 20px;
+    letter-spacing: 2px;
+    color: #fff;
+    text-decoration: none;
+    border-right: 1px solid rgba(255,255,255,0.15);
+    transition: background 0.15s;
+  }
+  nav a:last-child { border-right: none; }
+  nav a:hover, nav a.active { background: rgba(255,255,255,0.12); }
+  nav a svg {
+    width: 18px; height: 18px;
+    stroke: #fff; fill: none;
+    stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+    flex-shrink: 0;
+  }
+
+  /* ── PAGE CONTENT ── */
+  .page {
+    width: 100%;
+    max-width: 1100px;
+    padding: 48px 24px;
+    flex: 1;
+  }
+
+  .page-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 32px;
+  }
+  .page-header h2 {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 42px;
+    letter-spacing: 3px;
+    color: #1a1a2e;
+  }
+
+  /* ── FILTERS ── */
+  .filters {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 28px;
+    align-items: center;
+  }
+  .search-wrap {
+    position: relative;
+    flex: 1;
+    min-width: 200px;
+  }
+  .search-wrap svg {
+    position: absolute;
+    left: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 16px; height: 16px;
+    stroke: #8b6bbf; fill: none;
+    stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+    pointer-events: none;
+  }
+  .search-wrap input {
+    width: 100%;
+    padding: 10px 14px 10px 40px;
+    border: 1px solid #dde6f0;
+    border-radius: 8px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    background: #fff;
+    color: #1a1a2e;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  .search-wrap input:focus { border-color: #6c3fcf; }
+
+  select {
+    padding: 10px 14px;
+    border: 1px solid #dde6f0;
+    border-radius: 8px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    background: #fff;
+    color: #1a1a2e;
+    outline: none;
+    cursor: pointer;
+    transition: border-color 0.15s;
+  }
+  select:focus { border-color: #6c3fcf; }
+
+  /* ── TABLE ── */
+  .table-wrap {
+    background: #fff;
+    border-radius: 14px;
+    border: 1px solid #dde6f0;
+    overflow: hidden;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  thead {
+    background: #f4f7fb;
+    border-bottom: 1px solid #dde6f0;
+  }
+  th {
+    text-align: left;
+    padding: 14px 20px;
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 15px;
+    letter-spacing: 1.5px;
+    color: #6c3fcf;
+  }
+  td {
+    padding: 16px 20px;
+    font-size: 14px;
+    border-bottom: 1px solid #f0f4f9;
+    vertical-align: middle;
+  }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: #faf8ff; }
+
+  .exercise-img {
+    width: 44px; height: 44px;
+    border-radius: 8px;
+    object-fit: cover;
+    background: #eaf1fb;
+    border: 1px solid #dde6f0;
+  }
+  .img-placeholder {
+    width: 44px; height: 44px;
+    border-radius: 8px;
+    background: #eaf1fb;
+    border: 1px solid #dde6f0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #8b6bbf;
+    font-size: 18px;
+  }
+
+  .badge {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    background: #eaf1fb;
+    color: #6c3fcf;
+    letter-spacing: 0.5px;
+  }
+
+  .exercise-name { font-weight: 600; color: #1a1a2e; }
+  .exercise-desc { font-size: 12px; color: #8b6bbf; margin-top: 2px; }
+
+  /* ── STATES ── */
+  .state-row td {
+    text-align: center;
+    padding: 60px 20px;
+    color: #8b6bbf;
+    font-size: 15px;
+  }
+  .spinner {
+    width: 28px; height: 28px;
+    border: 3px solid #dde6f0;
+    border-top-color: #6c3fcf;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    margin: 0 auto 12px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .empty-icon { font-size: 36px; margin-bottom: 8px; }
+</style>
+</head>
+<body>
+
+<!-- ── SHARED HEADER ── -->
+<header>
+  <div class="logo-wrap">
+    <img src="logo.png" alt="SweatSheet logo"
+         onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" />
+    <span class="logo-fallback" style="display:none;">SS</span>
+  </div>
+</header>
+
+<!-- ── SHARED NAV ── -->
+<nav>
+  <a href="exercise-list.html">
+    <svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+    Exercise List
+  </a>
+  <a href="workout-logs.html">
+    <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+    Workout Logs
+  </a>
+  <a href="analytics.html">
+    <svg viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M7 16l4-4 4 4 4-6"/></svg>
+    Analytics
+  </a>
+</nav>
+
+<!-- ── PAGE CONTENT ── -->
+<main class="page">
+  <div class="page-header">
+    <h2>Exercise List</h2>
+  </div>
+
+  <div class="filters">
+    <div class="search-wrap">
+      <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input type="text" id="search" placeholder="Search exercises…" />
+    </div>
+    <select id="category-filter">
+      <option value="">All Categories</option>
+    </select>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th></th>
+          <th>Name</th>
+          <th>Category</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody id="exercise-tbody">
+        <tr class="state-row">
+          <td colspan="4">
+            <div class="spinner"></div>
+            Loading exercises…
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</main>
+
+<script type="module">
+  import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm'
+
+  // 🔑 Replace these with your actual Supabase project URL and anon key
+  const SUPABASE_URL = 'https://axjdyxxwjqkzjptykjrk.supabase.co'
+  const SUPABASE_ANON_KEY = 'sb_publishable_bxbvx2jVlmlqx_UgjGBqnA_CicT3EFM'
+
+  const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+
+  const tbody = document.getElementById('exercise-tbody')
+  const searchInput = document.getElementById('search')
+  const categoryFilter = document.getElementById('category-filter')
+
+  let allExercises = []
+
+  // ── Load categories into filter dropdown ──
+  async function loadCategories() {
+    const { data, error } = await supabase
+      .from('sweatsheet_workouts')
+      .select('id, name')
+      .order('name')
+
+    if (error || !data) return
+
+    data.forEach(cat => {
+      const opt = document.createElement('option')
+      opt.value = cat.id
+      opt.textContent = cat.name
+      categoryFilter.appendChild(opt)
+    })
+  }
+
+  // ── Load exercises from Supabase ──
+  async function loadExercises() {
+    const { data, error } = await supabase
+      .from('sweatsheet_exercises')
+      .select('*, sweatsheet_workouts(name)')
+      .eq('deleted', false)
+      .order('name')
+
+    if (error) {
+      tbody.innerHTML = `<tr class="state-row"><td colspan="4">Failed to load exercises. Check your Supabase config.</td></tr>`
+      console.error(error)
+      return
+    }
+
+    allExercises = data
+    renderTable(allExercises)
+  }
+
+  // ── Render table rows ──
+  function renderTable(exercises) {
+    if (!exercises.length) {
+      tbody.innerHTML = `
+        <tr class="state-row">
+          <td colspan="4">
+            <div class="empty-icon">🏋️</div>
+            No exercises found.
+          </td>
+        </tr>`
+      return
+    }
+
+    tbody.innerHTML = exercises.map(ex => `
+      <tr>
+        <td>
+          ${ex.image_url
+            ? `<img class="exercise-img" src="${ex.image_url}" alt="${ex.name}" />`
+            : `<div class="img-placeholder">💪</div>`
+          }
+        </td>
+        <td>
+          <div class="exercise-name">${ex.name}</div>
+        </td>
+        <td>
+          ${ex.sweatsheet_workouts?.name
+            ? `<span class="badge">${ex.sweatsheet_workouts.name}</span>`
+            : '—'
+          }
+        </td>
+        <td class="exercise-desc">${ex.description || '—'}</td>
+      </tr>
+    `).join('')
+  }
+
+  // ── Filter logic ──
+  function applyFilters() {
+    const search = searchInput.value.toLowerCase()
+    const catId = categoryFilter.value
+
+    const filtered = allExercises.filter(ex => {
+      const matchesSearch = ex.name.toLowerCase().includes(search)
+      const matchesCategory = !catId || ex.category_id === catId
+      return matchesSearch && matchesCategory
+    })
+
+    renderTable(filtered)
+  }
+
+  searchInput.addEventListener('input', applyFilters)
+  categoryFilter.addEventListener('change', applyFilters)
+
+  // ── Init ──
+  await loadCategories()
+  await loadExercises()
+</script>
+</body>
+</html>
