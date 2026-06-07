@@ -259,7 +259,11 @@
 
 <!-- ── SHARED NAV ── -->
 <nav>
-  <a href="exercise-list.html">
+  <a href="index.html">
+    <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+    Home
+  </a>
+  <a href="exercise-list.html" class="active">
     <svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
     Exercise List
   </a>
@@ -329,7 +333,7 @@
   // ── Load categories into filter dropdown ──
   async function loadCategories() {
     const { data, error } = await supabase
-      .from('sweatsheet_workouts')
+      .from('sweatsheet_categories')
       .select('id, name')
       .order('name')
 
@@ -346,8 +350,8 @@
   // ── Load exercises from Supabase ──
   async function loadExercises() {
     const { data, error } = await supabase
-      .from('sweatsheet_exercises')
-      .select('*, sweatsheet_workouts(name)')
+      .from('sweatsheet_workouts')
+      .select('*, sweatsheet_categories(name)')
       .eq('deleted', false)
       .order('name')
 
@@ -386,8 +390,8 @@
           <div class="exercise-name">${ex.name}</div>
         </td>
         <td>
-          ${ex.sweatsheet_workouts?.name
-            ? `<span class="badge">${ex.sweatsheet_workouts.name}</span>`
+          ${ex.sweatsheet_categories?.name
+            ? `<span class="badge">${ex.sweatsheet_categories.name}</span>`
             : '—'
           }
         </td>
