@@ -7,10 +7,6 @@
 
 const LINKS = [
   {
-    key: 'home', href: 'index.html', label: 'Home',
-    icon: '<path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>'
-  },
-  {
     key: 'exercise-list', href: 'exercise-list.html', label: 'Exercises',
     icon: '<path d="M4 6h16M4 12h16M4 18h16"/>'
   },
@@ -28,11 +24,13 @@ class SiteHeader extends HTMLElement {
   connectedCallback() {
     this.innerHTML = `
       <header class="site-header">
-        <div class="logo-wrap">
-          <img src="logo.png" alt="SweatSheet logo"
-               onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" />
-          <span class="logo-fallback" style="display:none;">SS</span>
-        </div>
+        <a href="index.html" class="logo-link">
+          <div class="logo-wrap">
+            <img src="logo.png" alt="SweatSheet logo"
+                 onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" />
+            <span class="logo-fallback" style="display:none;">SS</span>
+          </div>
+        </a>
       </header>`
   }
 }

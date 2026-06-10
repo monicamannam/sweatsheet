@@ -31,8 +31,6 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  /* leave room for the fixed bottom nav on mobile */
-  padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom));
 }
 
 img { max-width: 100%; }
@@ -45,6 +43,13 @@ img { max-width: 100%; }
   padding: 20px 16px;
   background: var(--card);
   border-bottom: 1px solid var(--border);
+}
+
+.logo-link {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  text-decoration: none;
 }
 
 .logo-wrap {
@@ -68,37 +73,36 @@ img { max-width: 100%; }
   color: var(--primary);
 }
 
-/* ── NAV (bottom tab bar on mobile) ───────────────────────── */
+/* ── NAV (ribbon across the top) ──────────────────────────── */
 .site-nav {
-  position: fixed;
-  left: 0; right: 0; bottom: 0;
+  position: sticky;
+  top: 0;
   z-index: 50;
+  width: 100%;
   display: flex;
   background: var(--primary);
-  padding-bottom: env(safe-area-inset-bottom);  /* iPhone home bar */
-  box-shadow: 0 -2px 12px rgba(26, 26, 46, 0.12);
+  box-shadow: 0 2px 12px rgba(26, 26, 46, 0.12);
 }
 .site-nav a {
   flex: 1;
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 4px;
-  min-height: var(--nav-h);
-  padding: 8px 4px;
-  font-family: var(--body);
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.3px;
-  color: rgba(255, 255, 255, 0.65);
+  gap: 6px;
+  padding: 14px 8px;
+  font-family: var(--display);
+  font-size: 15px;
+  letter-spacing: 1px;
+  color: rgba(255, 255, 255, 0.7);
   text-decoration: none;
+  border-right: 1px solid rgba(255, 255, 255, 0.15);
   transition: color 0.15s, background 0.15s;
 }
-.site-nav a.active { color: #fff; }
-.site-nav a:active  { background: rgba(255, 255, 255, 0.12); }
+.site-nav a:last-child { border-right: none; }
+.site-nav a.active { color: #fff; background: rgba(255, 255, 255, 0.12); }
+.site-nav a:hover  { background: rgba(255, 255, 255, 0.12); }
 .site-nav a svg {
-  width: 22px; height: 22px;
+  width: 18px; height: 18px;
   stroke: currentColor; fill: none;
   stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
 }
@@ -282,34 +286,19 @@ tbody tr.state-row { border: none; background: none; padding: 0; }
    Nav returns to the top; the exercise list becomes a real table.
    ════════════════════════════════════════════════════════════ */
 @media (min-width: 768px) {
-  body { padding-bottom: 0; }
-
   .site-header { padding: 40px 20px; }
   .logo-wrap { max-width: 460px; }
 
-  /* nav back to a top bar */
-  .site-nav {
-    position: static;
-    justify-content: center;
-    padding-bottom: 0;
-    box-shadow: none;
-  }
+  /* roomier ribbon on desktop */
+  .site-nav { justify-content: center; }
   .site-nav a {
     flex: 0 0 auto;
-    flex-direction: row;
     gap: 8px;
-    min-height: 0;
     padding: 18px 40px;
-    font-family: var(--display);
     font-size: 20px;
     letter-spacing: 2px;
     color: #fff;
-    border-right: 1px solid rgba(255, 255, 255, 0.15);
   }
-  .site-nav a:last-child { border-right: none; }
-  .site-nav a:hover { background: rgba(255, 255, 255, 0.12); }
-  .site-nav a.active { background: rgba(255, 255, 255, 0.12); }
-  .site-nav a svg { width: 18px; height: 18px; }
 
   .hero { padding: 90px 20px; }
   .hero h1 { font-size: 68px; letter-spacing: 3px; }

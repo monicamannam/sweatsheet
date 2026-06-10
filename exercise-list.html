@@ -31,7 +31,6 @@
       <table>
         <thead>
           <tr>
-            <th></th>
             <th>Name</th>
             <th>Category</th>
             <th>Description</th>
@@ -39,7 +38,7 @@
         </thead>
         <tbody id="exercise-tbody">
           <tr class="state-row">
-            <td colspan="4">
+            <td colspan="3">
               <div class="spinner"></div>
               Loading exercises…
             </td>
@@ -70,8 +69,7 @@
       if (!exercises.length) {
         tbody.innerHTML = `
           <tr class="state-row">
-            <td colspan="4">
-              <div class="empty-icon">🏋️</div>
+            <td colspan="3">
               No exercises found.
             </td>
           </tr>`
@@ -82,13 +80,9 @@
         const name = escapeHtml(ex.name)
         const cat  = ex.sweatsheet_categories?.name
         const desc = ex.description ? escapeHtml(ex.description) : '—'
-        const img  = ex.image_url
-          ? `<img class="exercise-img" src="${escapeHtml(ex.image_url)}" alt="${name}" />`
-          : `<div class="img-placeholder">💪</div>`
 
         return `
           <tr>
-            <td class="cell-img">${img}</td>
             <td data-label="Name"><span class="exercise-name">${name}</span></td>
             <td data-label="Category">${cat ? `<span class="badge">${escapeHtml(cat)}</span>` : '—'}</td>
             <td data-label="Description"><span class="exercise-desc">${desc}</span></td>
@@ -121,7 +115,7 @@
         renderTable(allExercises)
       } catch (err) {
         console.error(err)
-        tbody.innerHTML = `<tr class="state-row"><td colspan="4">Couldn't load exercises. Check your connection and try again.</td></tr>`
+        tbody.innerHTML = `<tr class="state-row"><td colspan="3">Couldn't load exercises. Check your connection and try again.</td></tr>`
       }
     }
 
