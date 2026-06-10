@@ -200,71 +200,60 @@ select { cursor: pointer; }
 .search-wrap input:focus,
 select:focus { border-color: var(--primary); }
 
-/* ── EXERCISE LIST: cards on mobile ───────────────────────── */
-.table-wrap { width: 100%; }
-table, thead, tbody, tr, td { display: block; width: 100%; }
-thead { display: none; }              /* headers are redundant in card mode */
-
-tbody tr {
+/* ── DATA TABLE (compact, identical at every screen size) ──── */
+.table-wrap {
+  width: 100%;
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: 14px;
-  padding: 14px 16px;
-  margin-bottom: 12px;
+  overflow-x: auto;                 /* narrow screens scroll the table, not the page */
+  -webkit-overflow-scrolling: touch;
 }
-tbody td {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 2px;
-  padding: 6px 0;
-  border: none;
-  font-size: 15px;
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
 }
-tbody td::before {
-  content: attr(data-label);
+thead { background: var(--bg); }
+th {
+  text-align: left;
+  padding: 11px 14px;
   font-family: var(--display);
-  font-size: 12px;
+  font-size: 14px;
   letter-spacing: 1px;
-  color: var(--accent);
+  color: var(--primary);
+  white-space: nowrap;
+  border-bottom: 1px solid var(--border);
 }
-td.cell-img { padding-bottom: 10px; }
-td.cell-img::before { display: none; }   /* image needs no label */
+td {
+  padding: 10px 14px;
+  border-bottom: 1px solid #f0f4f9;
+  vertical-align: middle;
+  line-height: 1.45;
+}
+tbody tr:last-child td { border-bottom: none; }
+tbody tr:hover td { background: var(--row-hover); }
 
-.exercise-img,
-.img-placeholder {
-  width: 56px; height: 56px;
-  border-radius: 10px;
-  background: var(--tint);
-  border: 1px solid var(--border);
-}
-.exercise-img { object-fit: cover; }
-.img-placeholder {
-  display: flex; align-items: center; justify-content: center;
-  color: var(--accent); font-size: 22px;
-}
-.exercise-name { font-weight: 600; color: var(--ink); font-size: 16px; }
-.exercise-desc { color: var(--accent); line-height: 1.5; }
+.exercise-name { font-weight: 600; color: var(--ink); }
+.exercise-desc { color: var(--accent); }
 .badge {
   display: inline-block;
-  padding: 3px 12px;
+  padding: 2px 10px;
   border-radius: 20px;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
   background: var(--tint);
   color: var(--primary);
+  white-space: nowrap;
 }
 
 /* ── STATES (loading / empty / error) ─────────────────────── */
-tbody tr.state-row { border: none; background: none; padding: 0; }
 .state-row td {
-  display: block;
   text-align: center;
-  padding: 56px 20px;
+  padding: 48px 20px;
   color: var(--accent);
   font-size: 15px;
 }
-.state-row td::before { display: none; }
 .spinner {
   width: 28px; height: 28px;
   border: 3px solid var(--border);
@@ -311,49 +300,6 @@ tbody tr.state-row { border: none; background: none; padding: 0; }
   .search-wrap { flex: 1; min-width: 220px; }
   .search-wrap input, select { min-height: 0; font-size: 14px; }
   select { width: auto; }
-
-  /* real table again */
-  .table-wrap {
-    background: var(--card);
-    border: 1px solid var(--border);
-    border-radius: 14px;
-    overflow: hidden;
-  }
-  table  { display: table; border-collapse: collapse; }
-  thead  { display: table-header-group; background: var(--bg); }
-  tbody  { display: table-row-group; }
-  tbody tr {
-    display: table-row;
-    background: none;
-    border: none;
-    border-radius: 0;
-    padding: 0; margin: 0;
-  }
-  th {
-    text-align: left;
-    padding: 14px 20px;
-    font-family: var(--display);
-    font-size: 15px;
-    letter-spacing: 1.5px;
-    color: var(--primary);
-    border-bottom: 1px solid var(--border);
-  }
-  tbody td {
-    display: table-cell;
-    padding: 16px 20px;
-    border-bottom: 1px solid #f0f4f9;
-    vertical-align: middle;
-    font-size: 14px;
-  }
-  tbody td::before { display: none; }
-  tbody tr:last-child td { border-bottom: none; }
-  tbody tr:hover td { background: var(--row-hover); }
-  td.cell-img { padding-bottom: 16px; }
-  .exercise-img, .img-placeholder { width: 44px; height: 44px; font-size: 18px; }
-  .exercise-name { font-size: 14px; }
-  .exercise-desc { font-size: 12px; }
-  .badge { font-size: 12px; }
-  .state-row td { padding: 60px 20px; }
 }
 
 /* ============================================================
