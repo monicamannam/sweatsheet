@@ -1,190 +1,24 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>SweatSheet</title>
-<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet"/>
-<style>
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-  body {
-    font-family: 'DM Sans', sans-serif;
-    background: #f4f7fb;
-    color: #1a1a2e;
-    min-height: 100vh;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-  }
-
-  header {
-    width: 100%;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    padding: 60px 20px 40px;
-    gap: 12px;
-    background: #fff;
-    border-bottom: 1px solid #dde6f0;
-  }
-
-  .logo-wrap {
-    width: 1126px;
-    height: 614px;
-    border-radius: 22px;
-    background: #eaf1fb;
-    border: 1px solid #c8d9ef;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    overflow: hidden;
-  }
-
-  .logo-wrap img {
-    width: 100%;
-    height: 100%;
-    object-fit: contain;
-  }
-
-  .logo-fallback {
-    font-family: 'Bebas Neue', sans-serif;
-    font-size: 28px;
-    letter-spacing: 2px;
-    color: #6c3fcf;
-  }
-
-  .site-name {
-    font-family: 'Bebas Neue', sans-serif;
-    font-size: 52px;
-    letter-spacing: 4px;
-    color: #1a1a2e;
-    line-height: 1;
-  }
-
-  .tagline {
-    font-size: 13px;
-    color: #8b6bbf;
-    letter-spacing: 1.5px;
-    text-transform: uppercase;
-  }
-
-  nav {
-    width: 100%;
-    background: #6c3fcf;
-    display: flex;
-    justify-content: center;
-  }
-
-  nav a {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    padding: 18px 44px;
-    font-family: 'Bebas Neue', sans-serif;
-    font-size: 20px;
-    letter-spacing: 2px;
-    color: #fff;
-    text-decoration: none;
-    border-right: 1px solid rgba(255,255,255,0.15);
-    transition: background 0.15s;
-  }
-
-  nav a:last-child { border-right: none; }
-
-  nav a:hover {
-    background: rgba(255,255,255,0.12);
-  }
-
-  nav a svg {
-    width: 18px;
-    height: 18px;
-    stroke: #fff;
-    fill: none;
-    stroke-width: 2;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-    flex-shrink: 0;
-  }
-
-  .hero {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: 90px 20px;
-    text-align: center;
-    gap: 20px;
-  }
-
-  .hero h1 {
-    font-family: 'Bebas Neue', sans-serif;
-    font-size: 68px;
-    letter-spacing: 3px;
-    line-height: 1;
-    color: #1a1a2e;
-  }
-
-  .hero h1 span {
-    color: #6c3fcf;
-  }
-
-  .hero p {
-    font-size: 16px;
-    color: #8b6bbf;
-    max-width: 360px;
-    line-height: 1.7;
-  }
-
-  .cta {
-    margin-top: 8px;
-    padding: 14px 36px;
-    background: #6c3fcf;
-    color: #fff;
-    font-family: 'Bebas Neue', sans-serif;
-    font-size: 18px;
-    letter-spacing: 2px;
-    border: none;
-    border-radius: 6px;
-    cursor: pointer;
-    text-decoration: none;
-    display: inline-block;
-    transition: background 0.15s;
-  }
-
-  .cta:hover { background: #5a32b0; }
-</style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SweatSheet</title>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+  <script type="module" src="components.js"></script>
 </head>
 <body>
 
-<header>
-  <div class="logo-wrap">
-    <img src="logo.png" alt="SweatSheet logo" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" />
-    <span class="logo-fallback" style="display:none;">SS</span>
-  </div>
-</header>
+  <site-header></site-header>
 
-<nav>
-  <a href="exercise-list.html">
-    <svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
-    Exercise List
-  </a>
-  <a href="workout-logs.html">
-    <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
-    Workout Logs
-  </a>
-  <a href="analytics.html">
-    <svg viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M7 16l4-4 4 4 4-6"/></svg>
-    Analytics
-  </a>
-</nav>
+  <section class="hero">
+    <h1>Built for <span>every rep.</span></h1>
+    <p>Log your workouts, track your progress, and see your gains — all in one place.</p>
+    <a class="cta" href="exercise-list.html">Get started</a>
+  </section>
 
-<section class="hero">
-  <h1>Built for <span>every rep.</span></h1>
-  <p>Log your workouts, track your progress, and see your gains — all in one place.</p>
-  <a href="#" class="cta">Get Started</a>
-</section>
+  <site-nav active="home"></site-nav>
 
 </body>
 </html>

@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SweatSheet — Analytics</title>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+  <script type="module" src="components.js"></script>
+</head>
+<body>
+
+  <site-header></site-header>
+
+  <main class="page">
+    <div class="page-header">
+      <h2>Analytics</h2>
+    </div>
+
+    <div class="stats-grid" id="stats">
+      <div class="stat"><div class="num">—</div><div class="lbl">Exercises</div></div>
+      <div class="stat"><div class="num">—</div><div class="lbl">Categories</div></div>
+      <div class="stat"><div class="num">—</div><div class="lbl">Avg / category</div></div>
+    </div>
+
+    <div class="panel">
+      <h3>Exercises per category</h3>
+      <div class="chart-box">
+        <canvas id="category-chart"></canvas>
+      </div>
+    </div>
+  </main>
+
+  <site-nav active="analytics"></site-nav>
+
+  <script type="module">
+    import Chart from 'https://cdn.jsdelivr.net/npm/chart.js@4.4.6/auto/+esm'
+    import { getCategories, getExercises } from './db.js'
+
+    const PURPLE = '#6c3fcf'
+    const INK    = '#1a1a2e'
+    const ACCENT = '#8b6bbf'
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+
+    function setStat(index, value) {
+      document.querySelectorAll('#stats .stat .num')[index].textContent = value
+    }
+
+    async function init() {
+      let categories, exercises
+      try {
+        ;[categories, exercises] = await Promise.all([getCategories(), getExercises()])
+      } catch (err) {
+        console.error(err)
+        document.querySelector('.chart-box').innerHTML =
+          '<p style="color:var(--accent);text-align:center;padding:40px 0;">Couldn\'t load data.</p>'
+        return
+      }
+
+      // Count exercises per category name.
+      const counts = {}
+      for (const cat of categories) counts[cat.name] = 0
+      for (const ex of exercises) {
+        const name = ex.sweatsheet_categories?.name
+        if (name) counts[name] = (counts[name] || 0) + 1
+      }
+
+      const labels = Object.keys(counts)
+      const values = labels.map(l => counts[l])
+
+      // Summary stats.
+      setStat(0, exercises.length)
+      setStat(1, categories.length)
+      setStat(2, categories.length ? (exercises.length / categories.length).toFixed(1) : '0')
+
+      if (!labels.length) {
+        document.querySelector('.chart-box').innerHTML =
+          '<p style="color:var(--accent);text-align:center;padding:40px 0;">No categories yet.</p>'
+        return
+      }
+
+      new Chart(document.getElementById('category-chart'), {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [{
+            data: values,
+            backgroundColor: PURPLE,
+            borderRadius: 6,
+            maxBarThickness: 48,
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: reduceMotion ? false : { duration: 600 },
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { grid: { display: false }, ticks: { color: INK, font: { family: 'DM Sans' } } },
+            y: {
+              beginAtZero: true,
+              ticks: { precision: 0, color: ACCENT, font: { family: 'DM Sans' } },
+              grid: { color: '#eef2f8' }
+            }
+          }
+        }
+      })
+    }
+
+    init()
+  </script>
+
+</body>
+</html>

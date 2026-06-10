@@ -1,0 +1,421 @@
+/* ============================================================
+   SweatSheet — shared styles (mobile-first)
+   Base rules target phones. The @media (min-width) blocks at the
+   bottom layer on desktop enhancements. Edit colors once, here.
+   ============================================================ */
+
+:root {
+  --bg:          #f4f7fb;
+  --card:        #fff;
+  --ink:         #1a1a2e;
+  --primary:     #6c3fcf;
+  --primary-dk:  #5a32b0;
+  --accent:      #8b6bbf;
+  --border:      #dde6f0;
+  --tint:        #eaf1fb;
+  --row-hover:   #faf8ff;
+
+  --display: 'Bebas Neue', sans-serif;
+  --body:    'DM Sans', sans-serif;
+
+  --nav-h: 64px;            /* height of the mobile bottom tab bar */
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: var(--body);
+  background: var(--bg);
+  color: var(--ink);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  /* leave room for the fixed bottom nav on mobile */
+  padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom));
+}
+
+img { max-width: 100%; }
+
+/* ── HEADER ───────────────────────────────────────────────── */
+.site-header {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  padding: 20px 16px;
+  background: var(--card);
+  border-bottom: 1px solid var(--border);
+}
+
+.logo-wrap {
+  width: 100%;
+  max-width: 200px;              /* compact on mobile */
+  aspect-ratio: 1126 / 614;      /* keeps the logo's shape, scales fluidly */
+  border-radius: 16px;
+  background: var(--tint);
+  border: 1px solid #c8d9ef;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+.logo-wrap img { width: 100%; height: 100%; object-fit: contain; }
+
+.logo-fallback {
+  font-family: var(--display);
+  font-size: 28px;
+  letter-spacing: 2px;
+  color: var(--primary);
+}
+
+/* ── NAV (bottom tab bar on mobile) ───────────────────────── */
+.site-nav {
+  position: fixed;
+  left: 0; right: 0; bottom: 0;
+  z-index: 50;
+  display: flex;
+  background: var(--primary);
+  padding-bottom: env(safe-area-inset-bottom);  /* iPhone home bar */
+  box-shadow: 0 -2px 12px rgba(26, 26, 46, 0.12);
+}
+.site-nav a {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: var(--nav-h);
+  padding: 8px 4px;
+  font-family: var(--body);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  color: rgba(255, 255, 255, 0.65);
+  text-decoration: none;
+  transition: color 0.15s, background 0.15s;
+}
+.site-nav a.active { color: #fff; }
+.site-nav a:active  { background: rgba(255, 255, 255, 0.12); }
+.site-nav a svg {
+  width: 22px; height: 22px;
+  stroke: currentColor; fill: none;
+  stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+}
+
+/* ── HERO (homepage) ──────────────────────────────────────── */
+.hero {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 56px 20px;
+  text-align: center;
+  gap: 16px;
+}
+.hero h1 {
+  font-family: var(--display);
+  font-size: 44px;
+  letter-spacing: 2px;
+  line-height: 1;
+  color: var(--ink);
+}
+.hero h1 span { color: var(--primary); }
+.hero p {
+  font-size: 15px;
+  color: var(--accent);
+  max-width: 340px;
+  line-height: 1.7;
+}
+.cta {
+  margin-top: 8px;
+  padding: 14px 32px;
+  background: var(--primary);
+  color: #fff;
+  font-family: var(--display);
+  font-size: 18px;
+  letter-spacing: 2px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-block;
+  transition: background 0.15s;
+}
+.cta:hover { background: var(--primary-dk); }
+
+/* ── PAGE SHELL ───────────────────────────────────────────── */
+.page {
+  width: 100%;
+  max-width: 1100px;
+  padding: 24px 16px;
+  flex: 1;
+}
+.page-header { margin-bottom: 20px; }
+.page-header h2 {
+  font-family: var(--display);
+  font-size: 34px;
+  letter-spacing: 2px;
+  color: var(--ink);
+}
+
+/* ── FILTERS (stacked on mobile) ──────────────────────────── */
+.filters {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+.search-wrap { position: relative; width: 100%; }
+.search-wrap svg {
+  position: absolute;
+  left: 14px; top: 50%;
+  transform: translateY(-50%);
+  width: 16px; height: 16px;
+  stroke: var(--accent); fill: none;
+  stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+  pointer-events: none;
+}
+.search-wrap input,
+select {
+  width: 100%;
+  min-height: 46px;                 /* comfortable tap target */
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font-family: var(--body);
+  font-size: 16px;                  /* >=16px stops iOS zoom-on-focus */
+  background: var(--card);
+  color: var(--ink);
+  outline: none;
+  transition: border-color 0.15s;
+}
+.search-wrap input { padding-left: 40px; }
+select { cursor: pointer; }
+.search-wrap input:focus,
+select:focus { border-color: var(--primary); }
+
+/* ── EXERCISE LIST: cards on mobile ───────────────────────── */
+.table-wrap { width: 100%; }
+table, thead, tbody, tr, td { display: block; width: 100%; }
+thead { display: none; }              /* headers are redundant in card mode */
+
+tbody tr {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 14px 16px;
+  margin-bottom: 12px;
+}
+tbody td {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 6px 0;
+  border: none;
+  font-size: 15px;
+}
+tbody td::before {
+  content: attr(data-label);
+  font-family: var(--display);
+  font-size: 12px;
+  letter-spacing: 1px;
+  color: var(--accent);
+}
+td.cell-img { padding-bottom: 10px; }
+td.cell-img::before { display: none; }   /* image needs no label */
+
+.exercise-img,
+.img-placeholder {
+  width: 56px; height: 56px;
+  border-radius: 10px;
+  background: var(--tint);
+  border: 1px solid var(--border);
+}
+.exercise-img { object-fit: cover; }
+.img-placeholder {
+  display: flex; align-items: center; justify-content: center;
+  color: var(--accent); font-size: 22px;
+}
+.exercise-name { font-weight: 600; color: var(--ink); font-size: 16px; }
+.exercise-desc { color: var(--accent); line-height: 1.5; }
+.badge {
+  display: inline-block;
+  padding: 3px 12px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 600;
+  background: var(--tint);
+  color: var(--primary);
+}
+
+/* ── STATES (loading / empty / error) ─────────────────────── */
+tbody tr.state-row { border: none; background: none; padding: 0; }
+.state-row td {
+  display: block;
+  text-align: center;
+  padding: 56px 20px;
+  color: var(--accent);
+  font-size: 15px;
+}
+.state-row td::before { display: none; }
+.spinner {
+  width: 28px; height: 28px;
+  border: 3px solid var(--border);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  margin: 0 auto 12px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.empty-icon { font-size: 36px; margin-bottom: 8px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner { animation-duration: 2s; }
+  * { transition: none !important; }
+}
+
+/* ════════════════════════════════════════════════════════════
+   DESKTOP ENHANCEMENTS (≥768px)
+   Nav returns to the top; the exercise list becomes a real table.
+   ════════════════════════════════════════════════════════════ */
+@media (min-width: 768px) {
+  body { padding-bottom: 0; }
+
+  .site-header { padding: 40px 20px; }
+  .logo-wrap { max-width: 460px; }
+
+  /* nav back to a top bar */
+  .site-nav {
+    position: static;
+    justify-content: center;
+    padding-bottom: 0;
+    box-shadow: none;
+  }
+  .site-nav a {
+    flex: 0 0 auto;
+    flex-direction: row;
+    gap: 8px;
+    min-height: 0;
+    padding: 18px 40px;
+    font-family: var(--display);
+    font-size: 20px;
+    letter-spacing: 2px;
+    color: #fff;
+    border-right: 1px solid rgba(255, 255, 255, 0.15);
+  }
+  .site-nav a:last-child { border-right: none; }
+  .site-nav a:hover { background: rgba(255, 255, 255, 0.12); }
+  .site-nav a.active { background: rgba(255, 255, 255, 0.12); }
+  .site-nav a svg { width: 18px; height: 18px; }
+
+  .hero { padding: 90px 20px; }
+  .hero h1 { font-size: 68px; letter-spacing: 3px; }
+  .hero p  { font-size: 16px; max-width: 360px; }
+
+  .page { padding: 48px 24px; }
+  .page-header h2 { font-size: 42px; letter-spacing: 3px; }
+
+  .filters { flex-direction: row; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .search-wrap { flex: 1; min-width: 220px; }
+  .search-wrap input, select { min-height: 0; font-size: 14px; }
+  select { width: auto; }
+
+  /* real table again */
+  .table-wrap {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    overflow: hidden;
+  }
+  table  { display: table; border-collapse: collapse; }
+  thead  { display: table-header-group; background: var(--bg); }
+  tbody  { display: table-row-group; }
+  tbody tr {
+    display: table-row;
+    background: none;
+    border: none;
+    border-radius: 0;
+    padding: 0; margin: 0;
+  }
+  th {
+    text-align: left;
+    padding: 14px 20px;
+    font-family: var(--display);
+    font-size: 15px;
+    letter-spacing: 1.5px;
+    color: var(--primary);
+    border-bottom: 1px solid var(--border);
+  }
+  tbody td {
+    display: table-cell;
+    padding: 16px 20px;
+    border-bottom: 1px solid #f0f4f9;
+    vertical-align: middle;
+    font-size: 14px;
+  }
+  tbody td::before { display: none; }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr:hover td { background: var(--row-hover); }
+  td.cell-img { padding-bottom: 16px; }
+  .exercise-img, .img-placeholder { width: 44px; height: 44px; font-size: 18px; }
+  .exercise-name { font-size: 14px; }
+  .exercise-desc { font-size: 12px; }
+  .badge { font-size: 12px; }
+  .state-row td { padding: 60px 20px; }
+}
+
+/* ============================================================
+   PANELS, STAT CARDS & CHARTS  (workout-logs + analytics)
+   ============================================================ */
+.panel {
+  width: 100%;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 18px 16px;
+  margin-bottom: 16px;
+}
+.panel h3 {
+  font-family: var(--display);
+  font-size: 22px;
+  letter-spacing: 1px;
+  color: var(--ink);
+  margin-bottom: 14px;
+}
+.chart-box { position: relative; width: 100%; height: 260px; }
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.stat {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 18px 16px;
+  text-align: center;
+}
+.stat .num {
+  font-family: var(--display);
+  font-size: 40px;
+  letter-spacing: 1px;
+  color: var(--primary);
+  line-height: 1;
+}
+.stat .lbl {
+  font-size: 12px;
+  color: var(--accent);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  margin-top: 6px;
+}
+
+@media (min-width: 768px) {
+  .panel { padding: 24px; }
+  .chart-box { height: 340px; }
+}

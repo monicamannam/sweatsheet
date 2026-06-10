@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SweatSheet — Workout Logs</title>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+  <script type="module" src="components.js"></script>
+</head>
+<body>
+
+  <site-header></site-header>
+
+  <main class="page">
+    <div class="page-header">
+      <h2>Workout Logs</h2>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Exercise</th>
+            <th>Sets</th>
+            <th>Reps</th>
+            <th>Weight</th>
+          </tr>
+        </thead>
+        <tbody id="logs-tbody">
+          <tr class="state-row">
+            <td colspan="5">
+              <div class="spinner"></div>
+              Loading workouts…
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </main>
+
+  <site-nav active="workout-logs"></site-nav>
+
+  <script type="module">
+    import { getWorkoutLogs } from './db.js'
+
+    const tbody = document.getElementById('logs-tbody')
+
+    function escapeHtml(str) {
+      return String(str).replace(/[&<>"']/g, c => (
+        { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+      ))
+    }
+
+    function fmtDate(value) {
+      if (!value) return '—'
+      const d = new Date(value)
+      return isNaN(d) ? escapeHtml(value)
+        : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+    }
+
+    function renderLogs(logs) {
+      if (!logs.length) {
+        tbody.innerHTML = `
+          <tr class="state-row">
+            <td colspan="5">
+              <div class="empty-icon">📋</div>
+              No workouts logged yet.
+            </td>
+          </tr>`
+        return
+      }
+
+      // Adjust these field names to match your logs table.
+      tbody.innerHTML = logs.map(log => {
+        const exercise = log.sweatsheet_workouts?.name || log.exercise_name || '—'
+        return `
+          <tr>
+            <td data-label="Date">${fmtDate(log.performed_at)}</td>
+            <td data-label="Exercise"><span class="exercise-name">${escapeHtml(exercise)}</span></td>
+            <td data-label="Sets">${log.sets ?? '—'}</td>
+            <td data-label="Reps">${log.reps ?? '—'}</td>
+            <td data-label="Weight">${log.weight != null ? escapeHtml(log.weight) : '—'}</td>
+          </tr>`
+      }).join('')
+    }
+
+    async function init() {
+      try {
+        renderLogs(await getWorkoutLogs())
+      } catch (err) {
+        console.error(err)
+        tbody.innerHTML = `<tr class="state-row"><td colspan="5">Couldn't load workouts. Check your connection and try again.</td></tr>`
+      }
+    }
+
+    init()
+  </script>
+
+</body>
+</html>
