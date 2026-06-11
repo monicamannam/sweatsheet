@@ -37,21 +37,31 @@ export async function getExercises() {
   return data ?? []
 }
 
-// ── Workout logs ────────────────────────────────────────────
-// PLACEHOLDER. I don't know your logged-workouts table yet, so
-// this returns nothing and the page shows a clean empty state.
-// To make it live: create your logs table in Supabase, then
-// replace the body below with the commented query and adjust
-// the table name + columns to match your schema.
-export async function getWorkoutLogs() {
-  return []   // <-- delete this line once your query below is ready
-
-  /*
+// ── Workout days (newest first) ─────────────────────────────
+// Each day comes back with its person, its exercises, and the
+// sets under each exercise. Exercises and sets are sorted in the
+// page (workout-logs.html). Matches these tables:
+//   sweatsheet_workout_days(user_id, performed_date, title)
+//   sweatsheet_workout_exercises(workout_day_id, exercise_id)
+//   sweatsheet_workout_sets(workout_exercise_id, set_number, reps, weight)
+export async function getWorkoutDays() {
   const { data, error } = await supabase
-    .from('sweatsheet_logs')                       // your logs table
-    .select('*, sweatsheet_workouts(name)')        // join the exercise name
-    .order('performed_at', { ascending: false })
+    .from('sweatsheet_workout_days')
+    .select(`
+      id,
+      performed_date,
+      title,
+      created_at,
+      sweatsheet_users ( name ),
+      sweatsheet_workout_exercises (
+        id,
+        sweatsheet_workouts ( name ),
+        sweatsheet_workout_sets ( set_number, reps, weight )
+      )
+    `)
+    .order('performed_date', { ascending: false })
+    .order('created_at', { ascending: false })
+
   if (error) throw error
   return data ?? []
-  */
 }

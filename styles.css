@@ -354,3 +354,112 @@ tbody tr:hover td { background: var(--row-hover); }
   .panel { padding: 24px; }
   .chart-box { height: 340px; }
 }
+
+/* ============================================================
+   AUTH CONTROL + ADD-EXERCISE FORM
+   ============================================================ */
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.auth-area { display: flex; align-items: center; gap: 10px; }
+.auth-email { font-size: 13px; color: var(--accent); }
+
+.btn {
+  padding: 9px 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card);
+  color: var(--ink);
+  font-family: var(--body);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.btn:hover { border-color: var(--primary); }
+.btn-primary {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary);
+}
+.btn-primary:hover { background: var(--primary-dk); border-color: var(--primary-dk); }
+.btn:disabled { opacity: 0.6; cursor: default; }
+
+.form-grid { display: flex; flex-direction: column; gap: 10px; }
+.form-grid input,
+.form-grid select {
+  width: 100%;
+  min-height: 46px;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font-family: var(--body);
+  font-size: 16px;
+  background: var(--card);
+  color: var(--ink);
+  outline: none;
+}
+.form-grid input:focus,
+.form-grid select:focus { border-color: var(--primary); }
+.form-msg { margin-top: 10px; font-size: 13px; color: var(--accent); min-height: 1em; }
+
+@media (min-width: 768px) {
+  .form-grid { flex-direction: row; align-items: center; }
+  .form-grid input,
+  .form-grid select { min-height: 0; font-size: 14px; }
+  .form-grid #f-name { flex: 2; }
+  .form-grid #f-category { flex: 1; }
+  .form-grid #f-desc { flex: 3; }
+}
+
+/* ============================================================
+   WORKOUT LOG — day cards
+   ============================================================ */
+.center-state {
+  text-align: center;
+  padding: 56px 20px;
+  color: var(--accent);
+  font-size: 15px;
+}
+.day-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+.day-date {
+  font-family: var(--display);
+  font-size: 20px;
+  letter-spacing: 1px;
+  color: var(--ink);
+}
+.day-meta { font-size: 13px; color: var(--accent); }
+
+.day-exercises { display: flex; flex-direction: column; gap: 12px; }
+.ex-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.ex-name { font-weight: 600; color: var(--ink); font-size: 15px; }
+.set-list { display: flex; flex-wrap: wrap; gap: 6px; }
+.set-chip {
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  background: var(--tint);
+  color: var(--primary);
+  padding: 2px 9px;
+  border-radius: 6px;
+}
+.day-empty { font-size: 13px; color: var(--accent); font-style: italic; }

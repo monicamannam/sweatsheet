@@ -17,35 +17,17 @@
       <h2>Workout Logs</h2>
     </div>
 
-    <div class="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th>Date</th>
-            <th>Exercise</th>
-            <th>Sets</th>
-            <th>Reps</th>
-            <th>Weight</th>
-          </tr>
-        </thead>
-        <tbody id="logs-tbody">
-          <tr class="state-row">
-            <td colspan="5">
-              <div class="spinner"></div>
-              Loading workouts…
-            </td>
-          </tr>
-        </tbody>
-      </table>
+    <div id="days">
+      <div class="center-state"><div class="spinner"></div>Loading workouts…</div>
     </div>
   </main>
 
   <site-nav active="workout-logs"></site-nav>
 
   <script type="module">
-    import { getWorkoutLogs } from './db.js'
+    import { getWorkoutDays } from './db.js'
 
-    const tbody = document.getElementById('logs-tbody')
+    const container = document.getElementById('days')
 
     function escapeHtml(str) {
       return String(str).replace(/[&<>"']/g, c => (
@@ -53,45 +35,67 @@
       ))
     }
 
-    function fmtDate(value) {
-      if (!value) return '—'
-      const d = new Date(value)
-      return isNaN(d) ? escapeHtml(value)
-        : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+    // Parse 'YYYY-MM-DD' as a LOCAL date (avoids the UTC day-shift).
+    function fmtDate(ymd) {
+      if (!ymd) return ''
+      const [y, m, d] = ymd.split('-').map(Number)
+      return new Date(y, m - 1, d).toLocaleDateString(undefined, {
+        weekday: 'short', month: 'short', day: 'numeric', year: 'numeric'
+      })
     }
 
-    function renderLogs(logs) {
-      if (!logs.length) {
-        tbody.innerHTML = `
-          <tr class="state-row">
-            <td colspan="5">
-              <div class="empty-icon">📋</div>
-              No workouts logged yet.
-            </td>
-          </tr>`
+    function fmtSet(s) {
+      const hasReps = s.reps !== null && s.reps !== undefined
+      const hasWeight = s.weight !== null && s.weight !== undefined
+      const w = hasWeight ? Number(s.weight) : null     // trims trailing .00
+      if (hasReps && hasWeight) return `${s.reps}×${w}`
+      if (hasReps) return `${s.reps}`
+      if (hasWeight) return `${w}`
+      return '—'
+    }
+
+    function renderDays(days) {
+      if (!days.length) {
+        container.innerHTML = `<div class="center-state"><div class="empty-icon">📋</div>No workouts logged yet.</div>`
         return
       }
 
-      // Adjust these field names to match your logs table.
-      tbody.innerHTML = logs.map(log => {
-        const exercise = log.sweatsheet_workouts?.name || log.exercise_name || '—'
+      container.innerHTML = days.map(day => {
+        const person = day.sweatsheet_users?.name ? escapeHtml(day.sweatsheet_users.name) : 'Unknown'
+        const title  = day.title ? escapeHtml(day.title) : ''
+        const meta   = title ? `${person} · ${title}` : person
+
+        const exercises = [...(day.sweatsheet_workout_exercises || [])].sort((a, b) => a.id - b.id)
+
+        const body = exercises.length
+          ? exercises.map(ex => {
+              const exName = ex.sweatsheet_workouts?.name ? escapeHtml(ex.sweatsheet_workouts.name) : '—'
+              const sets = [...(ex.sweatsheet_workout_sets || [])]
+                .sort((a, b) => (a.set_number || 0) - (b.set_number || 0))
+              const chips = sets.length
+                ? sets.map(s => `<span class="set-chip">${escapeHtml(fmtSet(s))}</span>`).join('')
+                : `<span class="day-empty">no sets</span>`
+              return `<div class="ex-row"><span class="ex-name">${exName}</span><span class="set-list">${chips}</span></div>`
+            }).join('')
+          : `<div class="day-empty">No exercises logged</div>`
+
         return `
-          <tr>
-            <td data-label="Date">${fmtDate(log.performed_at)}</td>
-            <td data-label="Exercise"><span class="exercise-name">${escapeHtml(exercise)}</span></td>
-            <td data-label="Sets">${log.sets ?? '—'}</td>
-            <td data-label="Reps">${log.reps ?? '—'}</td>
-            <td data-label="Weight">${log.weight != null ? escapeHtml(log.weight) : '—'}</td>
-          </tr>`
+          <div class="panel">
+            <div class="day-head">
+              <span class="day-date">${fmtDate(day.performed_date)}</span>
+              <span class="day-meta">${meta}</span>
+            </div>
+            <div class="day-exercises">${body}</div>
+          </div>`
       }).join('')
     }
 
     async function init() {
       try {
-        renderLogs(await getWorkoutLogs())
+        renderDays(await getWorkoutDays())
       } catch (err) {
         console.error(err)
-        tbody.innerHTML = `<tr class="state-row"><td colspan="5">Couldn't load workouts. Check your connection and try again.</td></tr>`
+        container.innerHTML = `<div class="center-state">Couldn't load workouts. Check your connection and try again.</div>`
       }
     }
 
