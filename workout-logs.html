@@ -17,17 +17,24 @@
       <h2>Workout Logs</h2>
     </div>
 
+    <div class="filters">
+      <select id="user-filter">
+        <option value="">Select a person…</option>
+      </select>
+    </div>
+
     <div id="days">
-      <div class="center-state"><div class="spinner"></div>Loading workouts…</div>
+      <div class="center-state">Select a person to see their workouts.</div>
     </div>
   </main>
 
   <site-nav active="workout-logs"></site-nav>
 
   <script type="module">
-    import { getWorkoutDays } from './db.js'
+    import { getUsers, getWorkoutDays } from './db.js'
 
-    const container = document.getElementById('days')
+    const userFilter = document.getElementById('user-filter')
+    const container  = document.getElementById('days')
 
     function escapeHtml(str) {
       return String(str).replace(/[&<>"']/g, c => (
@@ -61,9 +68,7 @@
       }
 
       container.innerHTML = days.map(day => {
-        const person = day.sweatsheet_users?.name ? escapeHtml(day.sweatsheet_users.name) : 'Unknown'
-        const title  = day.title ? escapeHtml(day.title) : ''
-        const meta   = title ? `${person} · ${title}` : person
+        const title = day.title ? escapeHtml(day.title) : ''
 
         const exercises = [...(day.sweatsheet_workout_exercises || [])].sort((a, b) => a.id - b.id)
 
@@ -83,20 +88,45 @@
           <div class="panel">
             <div class="day-head">
               <span class="day-date">${fmtDate(day.performed_date)}</span>
-              <span class="day-meta">${meta}</span>
+              ${title ? `<span class="day-title">${title}</span>` : ''}
             </div>
             <div class="day-exercises">${body}</div>
           </div>`
       }).join('')
     }
 
-    async function init() {
+    async function loadDays(userId) {
+      container.innerHTML = `<div class="center-state"><div class="spinner"></div>Loading workouts…</div>`
       try {
-        renderDays(await getWorkoutDays())
+        renderDays(await getWorkoutDays(userId))
       } catch (err) {
         console.error(err)
         container.innerHTML = `<div class="center-state">Couldn't load workouts. Check your connection and try again.</div>`
       }
+    }
+
+    async function init() {
+      try {
+        const users = await getUsers()
+        for (const u of users) {
+          const opt = document.createElement('option')
+          opt.value = u.id
+          opt.textContent = u.name
+          userFilter.appendChild(opt)
+        }
+      } catch (err) {
+        console.error(err)
+        container.innerHTML = `<div class="center-state">Couldn't load people. Check your connection and try again.</div>`
+        return
+      }
+
+      userFilter.addEventListener('change', () => {
+        if (userFilter.value) {
+          loadDays(userFilter.value)
+        } else {
+          container.innerHTML = `<div class="center-state">Select a person to see their workouts.</div>`
+        }
+      })
     }
 
     init()

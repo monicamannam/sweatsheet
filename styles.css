@@ -441,7 +441,12 @@ tbody tr:hover td { background: var(--row-hover); }
   letter-spacing: 1px;
   color: var(--ink);
 }
-.day-meta { font-size: 13px; color: var(--accent); }
+.day-title {
+  font-family: var(--display);
+  font-size: 20px;
+  letter-spacing: 1px;
+  color: var(--primary);
+}
 
 .day-exercises { display: flex; flex-direction: column; gap: 12px; }
 .ex-row {

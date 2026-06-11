@@ -37,14 +37,21 @@ export async function getExercises() {
   return data ?? []
 }
 
-// ── Workout days (newest first) ─────────────────────────────
-// Each day comes back with its person, its exercises, and the
-// sets under each exercise. Exercises and sets are sorted in the
-// page (workout-logs.html). Matches these tables:
-//   sweatsheet_workout_days(user_id, performed_date, title)
-//   sweatsheet_workout_exercises(workout_day_id, exercise_id)
-//   sweatsheet_workout_sets(workout_exercise_id, set_number, reps, weight)
-export async function getWorkoutDays() {
+// ── People (for the logs page dropdown), alphabetised ───────
+export async function getUsers() {
+  const { data, error } = await supabase
+    .from('sweatsheet_users')
+    .select('id, name')
+    .order('name')
+
+  if (error) throw error
+  return data ?? []
+}
+
+// ── Workout days for ONE person (newest first) ──────────────
+// Each day comes back with its exercises and the sets under each
+// exercise. Exercises and sets are sorted in the page.
+export async function getWorkoutDays(userId) {
   const { data, error } = await supabase
     .from('sweatsheet_workout_days')
     .select(`
@@ -52,13 +59,13 @@ export async function getWorkoutDays() {
       performed_date,
       title,
       created_at,
-      sweatsheet_users ( name ),
       sweatsheet_workout_exercises (
         id,
         sweatsheet_workouts ( name ),
         sweatsheet_workout_sets ( set_number, reps, weight )
       )
     `)
+    .eq('user_id', userId)
     .order('performed_date', { ascending: false })
     .order('created_at', { ascending: false })
 
