@@ -447,6 +447,11 @@ tbody tr:hover td { background: var(--row-hover); }
   letter-spacing: 1px;
   color: var(--primary);
 }
+/* keep the person dropdown inline beside the page title */
+#user-filter { width: auto; min-width: 140px; }
+@media (max-width: 767px) {
+  .logs-header h2 { font-size: 26px; }   /* fit title + dropdown on one row */
+}
 
 .day-exercises { display: flex; flex-direction: column; gap: 12px; }
 .ex-row {
