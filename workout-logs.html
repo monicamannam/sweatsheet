@@ -92,6 +92,18 @@
       }).join('')
     }
 
+    // Read/write the ?user= param so a selection survives refresh and is shareable.
+    function getUserParam() {
+      return new URLSearchParams(window.location.search).get('user') || ''
+    }
+
+    function setUserParam(userId) {
+      const url = new URL(window.location.href)
+      if (userId) url.searchParams.set('user', userId)
+      else        url.searchParams.delete('user')
+      history.replaceState(null, '', url)
+    }
+
     async function loadDays(userId) {
       container.innerHTML = `<div class="center-state"><div class="spinner"></div>Loading workouts…</div>`
       try {
@@ -118,12 +130,23 @@
       }
 
       userFilter.addEventListener('change', () => {
+        setUserParam(userFilter.value)
         if (userFilter.value) {
           loadDays(userFilter.value)
         } else {
           container.innerHTML = `<div class="center-state">Select a person to see their workouts.</div>`
         }
       })
+
+      // Restore the selection from the URL (e.g. after a refresh or a shared link).
+      const fromUrl = getUserParam()
+      if (fromUrl && [...userFilter.options].some(o => o.value === fromUrl)) {
+        userFilter.value = fromUrl
+        loadDays(fromUrl)
+      } else if (fromUrl) {
+        // Stale id that no longer matches anyone — drop it.
+        setUserParam('')
+      }
     }
 
     init()
