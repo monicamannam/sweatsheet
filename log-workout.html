@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SweatSheet — Log a Workout</title>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+  <script type="module" src="components.js"></script>
+
+  <!-- Form-specific styling. Reuses your tokens; move into styles.css if you prefer. -->
+  <style>
+    .field        { margin-bottom: 14px; display: flex; flex-direction: column; gap: 6px; }
+    .field label  { font-weight: 600; font-size: .85rem; letter-spacing: .02em; }
+    .field input,
+    .field select,
+    .ex-pick select,
+    .set-row input {
+      font: inherit;
+      padding: 10px 12px;
+      border: 1px solid #d8d2e6;
+      border-radius: 10px;
+      background: #fff;
+      color: inherit;
+    }
+    .field input:focus,
+    .field select:focus,
+    .ex-pick select:focus,
+    .set-row input:focus { outline: 2px solid #6c3fcf; outline-offset: 1px; }
+
+    .ex-block     { border: 1px solid #e7e2f1; border-radius: 14px; padding: 14px; margin-bottom: 12px; }
+    .ex-pick      { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; }
+    .ex-pick select { flex: 1; }
+
+    .set-row      { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+    .set-row .set-no { width: 28px; font-weight: 600; color: #6c3fcf; }
+    .set-row input   { width: 0; flex: 1; min-width: 0; }
+
+    .btn {
+      font: inherit; font-weight: 600; cursor: pointer;
+      border: none; border-radius: 10px; padding: 11px 16px;
+      background: #6c3fcf; color: #fff;
+    }
+    .btn:disabled { opacity: .5; cursor: default; }
+    .btn-ghost    { background: transparent; color: #6c3fcf; border: 1px solid #cdbff0; padding: 8px 12px; }
+    .btn-link     { background: none; border: none; color: #6c3fcf; cursor: pointer; font: inherit; padding: 4px 6px; }
+    .btn-x        { background: none; border: none; color: #b08; cursor: pointer; font-size: 1.1rem; line-height: 1; padding: 0 4px; }
+
+    .form-actions { display: flex; gap: 10px; align-items: center; margin-top: 16px; }
+    .status       { font-size: .9rem; }
+    .status.err   { color: #c02; }
+    .status.ok    { color: #2a7; }
+  </style>
+</head>
+<body>
+
+  <site-header></site-header>
+
+  <main class="page">
+    <div class="page-header">
+      <h2>Log a Workout</h2>
+    </div>
+
+    <div class="panel">
+      <div class="field">
+        <label for="user">Person</label>
+        <select id="user"><option value="">Select a person…</option></select>
+      </div>
+
+      <div class="field">
+        <label for="date">Date</label>
+        <input type="date" id="date" />
+      </div>
+
+      <div class="field">
+        <label for="title">Title <span style="font-weight:400;opacity:.6">(optional)</span></label>
+        <input type="text" id="title" placeholder="e.g. Push Day, Legs…" />
+      </div>
+
+      <div id="exercises"></div>
+
+      <button type="button" class="btn-ghost" id="add-exercise">+ Add exercise</button>
+
+      <div class="form-actions">
+        <button type="button" class="btn" id="save">Save workout</button>
+        <span class="status" id="status"></span>
+      </div>
+    </div>
+  </main>
+
+  <site-nav active="log-workout"></site-nav>
+
+  <script type="module">
+    import { getUsers, getWorkouts, saveWorkoutDay } from './db.js'
+
+    const userSel   = document.getElementById('user')
+    const dateInput = document.getElementById('date')
+    const titleInput= document.getElementById('title')
+    const exWrap    = document.getElementById('exercises')
+    const addExBtn  = document.getElementById('add-exercise')
+    const saveBtn   = document.getElementById('save')
+    const status    = document.getElementById('status')
+
+    let workouts = []   // exercise catalog (sweatsheet_workouts)
+
+    function setStatus(msg, kind = '') {
+      status.textContent = msg
+      status.className = 'status' + (kind ? ' ' + kind : '')
+    }
+
+    function todayLocal() {
+      const d = new Date()
+      const mm = String(d.getMonth() + 1).padStart(2, '0')
+      const dd = String(d.getDate()).padStart(2, '0')
+      return `${d.getFullYear()}-${mm}-${dd}`
+    }
+
+    // Build one <option> set for an exercise picker from the catalog.
+    function buildWorkoutOptions(select) {
+      const placeholder = document.createElement('option')
+      placeholder.value = ''
+      placeholder.textContent = 'Select an exercise…'
+      select.appendChild(placeholder)
+      for (const w of workouts) {
+        const opt = document.createElement('option')
+        opt.value = w.id
+        opt.textContent = w.name
+        select.appendChild(opt)
+      }
+    }
+
+    function addSetRow(setsContainer) {
+      const row = document.createElement('div')
+      row.className = 'set-row'
+
+      const no = document.createElement('span')
+      no.className = 'set-no'
+
+      const reps = document.createElement('input')
+      reps.type = 'number'; reps.min = '0'; reps.step = '1'
+      reps.placeholder = 'reps'; reps.className = 'reps'
+
+      const weight = document.createElement('input')
+      weight.type = 'number'; weight.min = '0'; weight.step = '0.5'
+      weight.placeholder = 'weight'; weight.className = 'weight'
+
+      const rm = document.createElement('button')
+      rm.type = 'button'; rm.className = 'btn-x'; rm.title = 'Remove set'
+      rm.textContent = '✕'
+      rm.addEventListener('click', () => { row.remove(); renumber(setsContainer) })
+
+      row.append(no, reps, weight, rm)
+      setsContainer.appendChild(row)
+      renumber(setsContainer)
+    }
+
+    function renumber(setsContainer) {
+      [...setsContainer.querySelectorAll('.set-no')].forEach((el, i) => { el.textContent = i + 1 })
+    }
+
+    function addExerciseBlock() {
+      const block = document.createElement('div')
+      block.className = 'ex-block'
+
+      const pick = document.createElement('div')
+      pick.className = 'ex-pick'
+      const select = document.createElement('select')
+      buildWorkoutOptions(select)
+      const rmEx = document.createElement('button')
+      rmEx.type = 'button'; rmEx.className = 'btn-x'; rmEx.title = 'Remove exercise'
+      rmEx.textContent = '✕'
+      rmEx.addEventListener('click', () => block.remove())
+      pick.append(select, rmEx)
+
+      const sets = document.createElement('div')
+      sets.className = 'sets'
+
+      const addSetBtn = document.createElement('button')
+      addSetBtn.type = 'button'; addSetBtn.className = 'btn-link'
+      addSetBtn.textContent = '+ Add set'
+      addSetBtn.addEventListener('click', () => addSetRow(sets))
+
+      block.append(pick, sets, addSetBtn)
+      exWrap.appendChild(block)
+      addSetRow(sets)   // start each exercise with one set
+    }
+
+    function collectEntry() {
+      const exercises = []
+      for (const block of exWrap.querySelectorAll('.ex-block')) {
+        const workoutId = block.querySelector('.ex-pick select').value
+        if (!workoutId) continue   // skip un-chosen exercise rows
+        const sets = [...block.querySelectorAll('.set-row')].map(r => ({
+          reps:   r.querySelector('.reps').value,
+          weight: r.querySelector('.weight').value,
+        }))
+        exercises.push({ workoutId, sets })
+      }
+      return {
+        userId: userSel.value,
+        performedDate: dateInput.value,
+        title: titleInput.value.trim(),
+        exercises,
+      }
+    }
+
+    async function save() {
+      const entry = collectEntry()
+      if (!entry.userId)        return setStatus('Pick a person first.', 'err')
+      if (!entry.performedDate) return setStatus('Pick a date.', 'err')
+      if (!entry.exercises.length) return setStatus('Add at least one exercise.', 'err')
+
+      saveBtn.disabled = true
+      setStatus('Saving…')
+      try {
+        await saveWorkoutDay(entry)
+        // Hand off to the logs page, filtered to this person (uses the ?user= param).
+        window.location.href = 'workout-logs.html?user=' + encodeURIComponent(entry.userId)
+      } catch (err) {
+        console.error(err)
+        setStatus("Couldn't save. Check the console and your RLS policies.", 'err')
+        saveBtn.disabled = false
+      }
+    }
+
+    async function init() {
+      dateInput.value = todayLocal()
+
+      try {
+        const [users, cat] = await Promise.all([getUsers(), getWorkouts()])
+        workouts = cat
+        for (const u of users) {
+          const opt = document.createElement('option')
+          opt.value = u.id
+          opt.textContent = u.name
+          userSel.appendChild(opt)
+        }
+        // Pre-select a person if one was passed in the URL (matches the logs page).
+        const fromUrl = new URLSearchParams(location.search).get('user')
+        if (fromUrl && [...userSel.options].some(o => o.value === fromUrl)) {
+          userSel.value = fromUrl
+        }
+      } catch (err) {
+        console.error(err)
+        setStatus("Couldn't load people or exercises. Check your connection.", 'err')
+        return
+      }
+
+      addExerciseBlock()   // start with one exercise
+      addExBtn.addEventListener('click', addExerciseBlock)
+      saveBtn.addEventListener('click', save)
+    }
+
+    init()
+  </script>
+
+</body>
+</html>

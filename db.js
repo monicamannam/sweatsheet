@@ -72,3 +72,44 @@ export async function getWorkoutDays(userId) {
   if (error) throw error
   return data ?? []
 }
+
+// Exercise catalog, for the picker.
+export async function getWorkouts() {
+  const { data, error } = await supabase
+    .from('sweatsheet_workouts')
+    .select('id, name')
+    .order('name')
+  if (error) throw error
+  return data
+}
+
+// Save a whole logged day: the day, its exercises, and each exercise's sets.
+export async function saveWorkoutDay(entry) {
+  const { data: day, error: dayErr } = await supabase
+    .from('sweatsheet_workout_days')
+    .insert({ user_id: entry.userId, performed_date: entry.performedDate, title: entry.title || null })
+    .select('id').single()
+  if (dayErr) throw dayErr
+
+  for (const ex of entry.exercises) {
+    const { data: exRow, error: exErr } = await supabase
+      .from('sweatsheet_workout_exercises')
+      .insert({ day_id: day.id, workout_id: ex.workoutId })
+      .select('id').single()
+    if (exErr) throw exErr
+
+    const sets = ex.sets
+      .map((s, i) => ({
+        exercise_id: exRow.id,
+        set_number: i + 1,
+        reps:   s.reps   === '' || s.reps   == null ? null : Number(s.reps),
+        weight: s.weight === '' || s.weight == null ? null : Number(s.weight),
+      }))
+      .filter(s => s.reps !== null || s.weight !== null)   // drop blank sets
+    if (sets.length) {
+      const { error: setErr } = await supabase.from('sweatsheet_workout_sets').insert(sets)
+      if (setErr) throw setErr
+    }
+  }
+  return day.id
+}
