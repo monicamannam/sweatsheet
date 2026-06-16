@@ -73,43 +73,87 @@ export async function getWorkoutDays(userId) {
   return data ?? []
 }
 
-// Exercise catalog, for the picker.
+// ── Exercise catalog for the picker (excludes soft-deleted) ──
 export async function getWorkouts() {
   const { data, error } = await supabase
     .from('sweatsheet_workouts')
     .select('id, name')
+    .eq('deleted', false)
     .order('name')
+
+  if (error) throw error
+  return data ?? []
+}
+
+// ── ONE workout day with its exercises + sets ───────────────
+// Used by the log page to rebuild a session from the ?day= id
+// (e.g. after a refresh, or when editing from the logs page).
+export async function getWorkoutDay(dayId) {
+  const { data, error } = await supabase
+    .from('sweatsheet_workout_days')
+    .select(`
+      id,
+      performed_date,
+      title,
+      user_id,
+      sweatsheet_workout_exercises (
+        id,
+        sweatsheet_workouts ( name ),
+        sweatsheet_workout_sets ( set_number, reps, weight )
+      )
+    `)
+    .eq('id', dayId)
+    .single()
+
   if (error) throw error
   return data
 }
 
-// Save a whole logged day: the day, its exercises, and each exercise's sets.
-export async function saveWorkoutDay(entry) {
-  const { data: day, error: dayErr } = await supabase
+// ── Create a session (the day row only). Returns the new id. ─
+export async function createWorkoutDay({ userId, performedDate, title }) {
+  const { data, error } = await supabase
     .from('sweatsheet_workout_days')
-    .insert({ user_id: entry.userId, performed_date: entry.performedDate, title: entry.title || null })
-    .select('id').single()
-  if (dayErr) throw dayErr
+    .insert({ user_id: userId, performed_date: performedDate, title: title || null })
+    .select('id')
+    .single()
 
-  for (const ex of entry.exercises) {
-    const { data: exRow, error: exErr } = await supabase
-      .from('sweatsheet_workout_exercises')
-      .insert({ day_id: day.id, workout_id: ex.workoutId })
-      .select('id').single()
-    if (exErr) throw exErr
+  if (error) throw error
+  return data.id
+}
 
-    const sets = ex.sets
-      .map((s, i) => ({
-        exercise_id: exRow.id,
-        set_number: i + 1,
-        reps:   s.reps   === '' || s.reps   == null ? null : Number(s.reps),
-        weight: s.weight === '' || s.weight == null ? null : Number(s.weight),
-      }))
-      .filter(s => s.reps !== null || s.weight !== null)   // drop blank sets
-    if (sets.length) {
-      const { error: setErr } = await supabase.from('sweatsheet_workout_sets').insert(sets)
-      if (setErr) throw setErr
-    }
+// ── Add one exercise to a day, plus an optional first set ───
+// Returns { exerciseId, set } where set is null if no numbers
+// were entered.
+export async function addExercise({ dayId, workoutId, reps, weight }) {
+  const { data: ex, error: exErr } = await supabase
+    .from('sweatsheet_workout_exercises')
+    .insert({ day_id: dayId, workout_id: workoutId })
+    .select('id')
+    .single()
+  if (exErr) throw exErr
+
+  let set = null
+  const hasReps   = reps   !== '' && reps   != null
+  const hasWeight = weight !== '' && weight != null
+  if (hasReps || hasWeight) {
+    set = await addSet({ exerciseId: ex.id, setNumber: 1, reps, weight })
   }
-  return day.id
+  return { exerciseId: ex.id, set }
+}
+
+// ── Add a single set to an existing exercise ────────────────
+export async function addSet({ exerciseId, setNumber, reps, weight }) {
+  const { data, error } = await supabase
+    .from('sweatsheet_workout_sets')
+    .insert({
+      exercise_id: exerciseId,
+      set_number: setNumber,
+      reps:   reps   === '' || reps   == null ? null : Number(reps),
+      weight: weight === '' || weight == null ? null : Number(weight),
+    })
+    .select('set_number, reps, weight')
+    .single()
+
+  if (error) throw error
+  return data
 }
