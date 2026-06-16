@@ -7,6 +7,47 @@
   <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="styles.css" />
   <script type="module" src="components.js"></script>
+
+  <!-- New-session button, edit buttons, and the modal. Move into styles.css if you prefer. -->
+  <style>
+    .session-btn {
+      font: inherit; font-weight: 600; cursor: pointer; white-space: nowrap;
+      border: none; border-radius: 10px; padding: 9px 14px;
+      background: #6c3fcf; color: #fff;
+    }
+    .session-btn:disabled { opacity: .45; cursor: default; }
+
+    .edit-btn {
+      margin-left: auto; font: inherit; font-size: .8rem; font-weight: 600; cursor: pointer;
+      border: 1px solid #cdbff0; background: transparent; color: #6c3fcf;
+      border-radius: 8px; padding: 4px 10px;
+    }
+
+    .modal-backdrop {
+      position: fixed; inset: 0; background: rgba(20,12,40,.45);
+      display: flex; align-items: center; justify-content: center; padding: 20px; z-index: 50;
+    }
+    .modal-backdrop.hidden { display: none; }
+    .modal {
+      background: #fff; border-radius: 16px; padding: 22px; width: 100%; max-width: 360px;
+      box-shadow: 0 12px 40px rgba(20,12,40,.25);
+    }
+    .modal h3 { margin: 0 0 14px; }
+    .modal .field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+    .modal .field label { font-weight: 600; font-size: .85rem; }
+    .modal .field input {
+      font: inherit; padding: 10px 12px; border: 1px solid #d8d2e6;
+      border-radius: 10px; background: #fff; color: inherit;
+    }
+    .modal .field input:focus { outline: 2px solid #6c3fcf; outline-offset: 1px; }
+    .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 4px; }
+
+    .btn { font: inherit; font-weight: 600; cursor: pointer; border: none; border-radius: 10px; padding: 10px 16px; background: #6c3fcf; color: #fff; }
+    .btn:disabled { opacity: .5; cursor: default; }
+    .btn-ghost { background: transparent; color: #6c3fcf; border: 1px solid #cdbff0; }
+    .status { font-size: .85rem; }
+    .status.err { color: #c02; }
+  </style>
 </head>
 <body>
 
@@ -18,6 +59,7 @@
       <select id="user-filter">
         <option value="">Select a person…</option>
       </select>
+      <button class="session-btn" id="new-session" disabled title="Pick a person first">+ Log workout session</button>
     </div>
 
     <div id="days">
@@ -27,11 +69,38 @@
 
   <site-nav active="workout-logs"></site-nav>
 
-  <script type="module">
-    import { getUsers, getWorkoutDays } from './db.js'
+  <!-- New workout session modal -->
+  <div class="modal-backdrop hidden" id="ns-modal">
+    <div class="modal">
+      <h3>New workout session</h3>
+      <div class="field">
+        <label for="ns-date">Date</label>
+        <input type="date" id="ns-date" />
+      </div>
+      <div class="field">
+        <label for="ns-title">Title <span style="font-weight:400;opacity:.6">(optional)</span></label>
+        <input type="text" id="ns-title" placeholder="e.g. Push Day, Legs…" />
+      </div>
+      <span class="status err" id="ns-status"></span>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" id="ns-cancel">Cancel</button>
+        <button class="btn" id="ns-create">Create &amp; add exercises</button>
+      </div>
+    </div>
+  </div>
 
-    const userFilter = document.getElementById('user-filter')
-    const container  = document.getElementById('days')
+  <script type="module">
+    import { getUsers, getWorkoutDays, createWorkoutDay } from './db.js'
+
+    const userFilter   = document.getElementById('user-filter')
+    const container    = document.getElementById('days')
+    const newSessionBtn= document.getElementById('new-session')
+    const modal        = document.getElementById('ns-modal')
+    const nsDate       = document.getElementById('ns-date')
+    const nsTitle      = document.getElementById('ns-title')
+    const nsStatus     = document.getElementById('ns-status')
+    const nsCreate     = document.getElementById('ns-create')
+    const nsCancel     = document.getElementById('ns-cancel')
 
     function escapeHtml(str) {
       return String(str).replace(/[&<>"']/g, c => (
@@ -46,6 +115,13 @@
       return new Date(y, m - 1, d).toLocaleDateString(undefined, {
         weekday: 'short', month: 'short', day: 'numeric', year: 'numeric'
       })
+    }
+
+    // Today's date in Pacific time, as YYYY-MM-DD (en-CA gives that format).
+    function todayPacific() {
+      return new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'America/Los_Angeles', year: 'numeric', month: '2-digit', day: '2-digit'
+      }).format(new Date())
     }
 
     function fmtSet(s) {
@@ -86,6 +162,7 @@
             <div class="day-head">
               <span class="day-date">${fmtDate(day.performed_date)}</span>
               ${title ? `<span class="day-title">${title}</span>` : ''}
+              <button class="edit-btn" data-edit-day="${day.id}">Edit</button>
             </div>
             <div class="day-exercises">${body}</div>
           </div>`
@@ -104,6 +181,11 @@
       history.replaceState(null, '', url)
     }
 
+    function syncNewSessionBtn() {
+      newSessionBtn.disabled = !userFilter.value
+      newSessionBtn.title = userFilter.value ? '' : 'Pick a person first'
+    }
+
     async function loadDays(userId) {
       container.innerHTML = `<div class="center-state"><div class="spinner"></div>Loading workouts…</div>`
       try {
@@ -111,6 +193,37 @@
       } catch (err) {
         console.error(err)
         container.innerHTML = `<div class="center-state">Couldn't load workouts. Check your connection and try again.</div>`
+      }
+    }
+
+    // --- modal ---
+    function openModal() {
+      if (!userFilter.value) return
+      nsDate.value = todayPacific()
+      nsTitle.value = ''
+      nsStatus.textContent = ''
+      modal.classList.remove('hidden')
+      nsTitle.focus()
+    }
+    function closeModal() { modal.classList.add('hidden') }
+
+    async function createSession() {
+      if (!userFilter.value) return
+      if (!nsDate.value) { nsStatus.textContent = 'Pick a date.'; return }
+      nsCreate.disabled = true
+      nsStatus.textContent = ''
+      try {
+        const dayId = await createWorkoutDay({
+          userId: userFilter.value,
+          performedDate: nsDate.value,
+          title: nsTitle.value.trim(),
+        })
+        // Hand off to the log page for this brand-new session.
+        location.href = 'log-workout.html?day=' + encodeURIComponent(dayId)
+      } catch (err) {
+        console.error(err)
+        nsStatus.textContent = "Couldn't create the session."
+        nsCreate.disabled = false
       }
     }
 
@@ -131,6 +244,7 @@
 
       userFilter.addEventListener('change', () => {
         setUserParam(userFilter.value)
+        syncNewSessionBtn()
         if (userFilter.value) {
           loadDays(userFilter.value)
         } else {
@@ -138,15 +252,27 @@
         }
       })
 
+      // Edit a session -> open it on the log page.
+      container.addEventListener('click', e => {
+        const btn = e.target.closest('[data-edit-day]')
+        if (!btn) return
+        location.href = 'log-workout.html?day=' + encodeURIComponent(btn.dataset.editDay)
+      })
+
+      newSessionBtn.addEventListener('click', openModal)
+      nsCancel.addEventListener('click', closeModal)
+      nsCreate.addEventListener('click', createSession)
+      modal.addEventListener('click', e => { if (e.target === modal) closeModal() })
+
       // Restore the selection from the URL (e.g. after a refresh or a shared link).
       const fromUrl = getUserParam()
       if (fromUrl && [...userFilter.options].some(o => o.value === fromUrl)) {
         userFilter.value = fromUrl
         loadDays(fromUrl)
       } else if (fromUrl) {
-        // Stale id that no longer matches anyone — drop it.
-        setUserParam('')
+        setUserParam('')   // stale id — drop it
       }
+      syncNewSessionBtn()
     }
 
     init()

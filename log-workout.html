@@ -15,41 +15,43 @@
     .field input,
     .field select,
     .ex-pick select,
-    .set-row input {
-      font: inherit;
-      padding: 10px 12px;
-      border: 1px solid #d8d2e6;
-      border-radius: 10px;
-      background: #fff;
-      color: inherit;
+    .mini input {
+      font: inherit; padding: 10px 12px; border: 1px solid #d8d2e6;
+      border-radius: 10px; background: #fff; color: inherit;
     }
     .field input:focus,
     .field select:focus,
     .ex-pick select:focus,
-    .set-row input:focus { outline: 2px solid #6c3fcf; outline-offset: 1px; }
+    .mini input:focus { outline: 2px solid #6c3fcf; outline-offset: 1px; }
 
-    .ex-block     { border: 1px solid #e7e2f1; border-radius: 14px; padding: 14px; margin-bottom: 12px; }
-    .ex-pick      { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; }
+    .session-summary { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 4px; }
+    .session-summary .who  { font-weight: 600; }
+    .session-summary .when { opacity: .7; font-size: .9rem; }
+    .session-summary .what { color: #6c3fcf; font-weight: 600; }
+
+    .ex-block   { border: 1px solid #e7e2f1; border-radius: 14px; padding: 12px 14px; margin: 12px 0; }
+    .ex-block .ex-name { font-weight: 600; display: block; margin-bottom: 8px; }
+    .ex-block .set-list { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+    .ex-block .day-empty { opacity: .55; font-size: .85rem; }
+
+    .mini       { display: flex; gap: 8px; align-items: center; }
+    .mini input { width: 0; flex: 1; min-width: 0; }
+
+    .ex-pick    { display: flex; gap: 8px; }
     .ex-pick select { flex: 1; }
 
-    .set-row      { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
-    .set-row .set-no { width: 28px; font-weight: 600; color: #6c3fcf; }
-    .set-row input   { width: 0; flex: 1; min-width: 0; }
-
-    .btn {
-      font: inherit; font-weight: 600; cursor: pointer;
-      border: none; border-radius: 10px; padding: 11px 16px;
-      background: #6c3fcf; color: #fff;
-    }
+    .btn { font: inherit; font-weight: 600; cursor: pointer; border: none; border-radius: 10px; padding: 11px 16px; background: #6c3fcf; color: #fff; }
     .btn:disabled { opacity: .5; cursor: default; }
-    .btn-ghost    { background: transparent; color: #6c3fcf; border: 1px solid #cdbff0; padding: 8px 12px; }
-    .btn-link     { background: none; border: none; color: #6c3fcf; cursor: pointer; font: inherit; padding: 4px 6px; }
-    .btn-x        { background: none; border: none; color: #b08; cursor: pointer; font-size: 1.1rem; line-height: 1; padding: 0 4px; }
+    .btn-ghost  { background: transparent; color: #6c3fcf; border: 1px solid #cdbff0; }
+    .btn-sm     { padding: 9px 12px; font-size: .9rem; }
+
+    .add-ex-form { border-top: 1px dashed #d8d2e6; margin-top: 16px; padding-top: 16px; }
+    .add-ex-form .field { margin-bottom: 10px; }
 
     .form-actions { display: flex; gap: 10px; align-items: center; margin-top: 16px; }
-    .status       { font-size: .9rem; }
-    .status.err   { color: #c02; }
-    .status.ok    { color: #2a7; }
+    .status     { font-size: .9rem; }
+    .status.err { color: #c02; }
+    .hidden     { display: none; }
   </style>
 </head>
 <body>
@@ -61,29 +63,36 @@
       <h2>Log a Workout</h2>
     </div>
 
-    <div class="panel">
-      <div class="field">
-        <label for="user">Person</label>
-        <select id="user"><option value="">Select a person…</option></select>
+    <!-- Shown when there's no ?day= to work on -->
+    <div class="panel hidden" id="no-session">
+      <div class="center-state">
+        No session selected. <a href="workout-logs.html">Go to Workout Logs</a> to start one.
       </div>
+    </div>
 
-      <div class="field">
-        <label for="date">Date</label>
-        <input type="date" id="date" />
+    <!-- The active session: add exercises & sets one at a time -->
+    <div class="panel hidden" id="session">
+      <div class="session-summary" id="summary"></div>
+
+      <div id="exercise-list"></div>
+
+      <div class="add-ex-form">
+        <div class="field">
+          <label for="ex-pick">Add an exercise</label>
+          <div class="ex-pick">
+            <select id="ex-pick"></select>
+          </div>
+        </div>
+        <div class="mini" style="margin-bottom:10px">
+          <input type="number" id="ex-reps"   min="0" step="1"   placeholder="reps" />
+          <input type="number" id="ex-weight" min="0" step="0.5" placeholder="weight" />
+          <button type="button" class="btn btn-sm" id="add-exercise">Add</button>
+        </div>
+        <span class="status" id="ex-status"></span>
       </div>
-
-      <div class="field">
-        <label for="title">Title <span style="font-weight:400;opacity:.6">(optional)</span></label>
-        <input type="text" id="title" placeholder="e.g. Push Day, Legs…" />
-      </div>
-
-      <div id="exercises"></div>
-
-      <button type="button" class="btn-ghost" id="add-exercise">+ Add exercise</button>
 
       <div class="form-actions">
-        <button type="button" class="btn" id="save">Save workout</button>
-        <span class="status" id="status"></span>
+        <button type="button" class="btn-ghost btn" id="view-logs">Done — view logs</button>
       </div>
     </div>
   </main>
@@ -91,164 +100,187 @@
   <site-nav active="log-workout"></site-nav>
 
   <script type="module">
-    import { getUsers, getWorkouts, saveWorkoutDay } from './db.js'
+    import { getUsers, getWorkouts, addExercise, addSet, getWorkoutDay } from './db.js'
 
-    const userSel   = document.getElementById('user')
-    const dateInput = document.getElementById('date')
-    const titleInput= document.getElementById('title')
-    const exWrap    = document.getElementById('exercises')
-    const addExBtn  = document.getElementById('add-exercise')
-    const saveBtn   = document.getElementById('save')
-    const status    = document.getElementById('status')
+    const noSessionEl = document.getElementById('no-session')
+    const sessionEl   = document.getElementById('session')
+    const summaryEl   = document.getElementById('summary')
+    const listEl      = document.getElementById('exercise-list')
+    const exPick      = document.getElementById('ex-pick')
+    const exReps      = document.getElementById('ex-reps')
+    const exWeight    = document.getElementById('ex-weight')
+    const addExBtn    = document.getElementById('add-exercise')
+    const exStatus    = document.getElementById('ex-status')
+    const viewLogsBtn = document.getElementById('view-logs')
 
-    let workouts = []   // exercise catalog (sweatsheet_workouts)
+    // --- state ---
+    let dayId = null
+    let userId = null
+    let workouts = []
+    let usersById = {}
+    const setCounts = {}   // exerciseId -> highest set_number so far
 
-    function setStatus(msg, kind = '') {
-      status.textContent = msg
-      status.className = 'status' + (kind ? ' ' + kind : '')
+    // --- helpers ---
+    function fmtDate(ymd) {
+      if (!ymd) return ''
+      const [y, m, d] = ymd.split('-').map(Number)
+      return new Date(y, m - 1, d).toLocaleDateString(undefined, {
+        weekday: 'short', month: 'short', day: 'numeric', year: 'numeric'
+      })
     }
 
-    function todayLocal() {
-      const d = new Date()
-      const mm = String(d.getMonth() + 1).padStart(2, '0')
-      const dd = String(d.getDate()).padStart(2, '0')
-      return `${d.getFullYear()}-${mm}-${dd}`
+    function fmtSet(s) {
+      const hasReps = s.reps !== null && s.reps !== undefined
+      const hasWeight = s.weight !== null && s.weight !== undefined
+      const w = hasWeight ? Number(s.weight) : null
+      if (hasReps && hasWeight) return `${s.reps}×${w}`
+      if (hasReps) return `${s.reps}`
+      if (hasWeight) return `${w}`
+      return '—'
     }
 
-    // Build one <option> set for an exercise picker from the catalog.
     function buildWorkoutOptions(select) {
-      const placeholder = document.createElement('option')
-      placeholder.value = ''
-      placeholder.textContent = 'Select an exercise…'
-      select.appendChild(placeholder)
+      select.innerHTML = ''
+      const ph = document.createElement('option')
+      ph.value = ''; ph.textContent = 'Select an exercise…'
+      select.appendChild(ph)
       for (const w of workouts) {
         const opt = document.createElement('option')
-        opt.value = w.id
-        opt.textContent = w.name
+        opt.value = w.id; opt.textContent = w.name
         select.appendChild(opt)
       }
     }
 
-    function addSetRow(setsContainer) {
-      const row = document.createElement('div')
-      row.className = 'set-row'
-
-      const no = document.createElement('span')
-      no.className = 'set-no'
-
-      const reps = document.createElement('input')
-      reps.type = 'number'; reps.min = '0'; reps.step = '1'
-      reps.placeholder = 'reps'; reps.className = 'reps'
-
-      const weight = document.createElement('input')
-      weight.type = 'number'; weight.min = '0'; weight.step = '0.5'
-      weight.placeholder = 'weight'; weight.className = 'weight'
-
-      const rm = document.createElement('button')
-      rm.type = 'button'; rm.className = 'btn-x'; rm.title = 'Remove set'
-      rm.textContent = '✕'
-      rm.addEventListener('click', () => { row.remove(); renumber(setsContainer) })
-
-      row.append(no, reps, weight, rm)
-      setsContainer.appendChild(row)
-      renumber(setsContainer)
+    function showSummary(name, performedDate, title) {
+      summaryEl.innerHTML = ''
+      const who  = document.createElement('span'); who.className  = 'who';  who.textContent  = name
+      const when = document.createElement('span'); when.className = 'when'; when.textContent = fmtDate(performedDate)
+      summaryEl.append(who, when)
+      if (title) {
+        const what = document.createElement('span'); what.className = 'what'; what.textContent = title
+        summaryEl.appendChild(what)
+      }
     }
 
-    function renumber(setsContainer) {
-      [...setsContainer.querySelectorAll('.set-no')].forEach((el, i) => { el.textContent = i + 1 })
+    function addSetChip(setListEl, set) {
+      const empty = setListEl.querySelector('.day-empty')
+      if (empty) empty.remove()
+      const chip = document.createElement('span')
+      chip.className = 'set-chip'
+      chip.textContent = fmtSet(set)
+      setListEl.appendChild(chip)
     }
 
-    function addExerciseBlock() {
+    function makeExerciseBlock(exerciseId, name, sets = []) {
+      setCounts[exerciseId] = sets.reduce((m, s) => Math.max(m, s.set_number || 0), 0)
+
       const block = document.createElement('div')
       block.className = 'ex-block'
 
-      const pick = document.createElement('div')
-      pick.className = 'ex-pick'
-      const select = document.createElement('select')
-      buildWorkoutOptions(select)
-      const rmEx = document.createElement('button')
-      rmEx.type = 'button'; rmEx.className = 'btn-x'; rmEx.title = 'Remove exercise'
-      rmEx.textContent = '✕'
-      rmEx.addEventListener('click', () => block.remove())
-      pick.append(select, rmEx)
+      const nameEl = document.createElement('span')
+      nameEl.className = 'ex-name'; nameEl.textContent = name
+      block.appendChild(nameEl)
 
-      const sets = document.createElement('div')
-      sets.className = 'sets'
+      const setList = document.createElement('div')
+      setList.className = 'set-list'
+      if (sets.length) {
+        sets.slice().sort((a, b) => (a.set_number || 0) - (b.set_number || 0))
+            .forEach(s => addSetChip(setList, s))
+      } else {
+        const none = document.createElement('span')
+        none.className = 'day-empty'; none.textContent = 'no sets yet'
+        setList.appendChild(none)
+      }
+      block.appendChild(setList)
 
-      const addSetBtn = document.createElement('button')
-      addSetBtn.type = 'button'; addSetBtn.className = 'btn-link'
-      addSetBtn.textContent = '+ Add set'
-      addSetBtn.addEventListener('click', () => addSetRow(sets))
+      const mini = document.createElement('div')
+      mini.className = 'mini'
+      const reps = document.createElement('input')
+      reps.type = 'number'; reps.min = '0'; reps.step = '1'; reps.placeholder = 'reps'
+      const weight = document.createElement('input')
+      weight.type = 'number'; weight.min = '0'; weight.step = '0.5'; weight.placeholder = 'weight'
+      const btn = document.createElement('button')
+      btn.type = 'button'; btn.className = 'btn-ghost btn btn-sm'; btn.textContent = '+ Set'
 
-      block.append(pick, sets, addSetBtn)
-      exWrap.appendChild(block)
-      addSetRow(sets)   // start each exercise with one set
+      btn.addEventListener('click', async () => {
+        if (reps.value === '' && weight.value === '') return
+        btn.disabled = true
+        try {
+          const next = (setCounts[exerciseId] || 0) + 1
+          const set = await addSet({ exerciseId, setNumber: next, reps: reps.value, weight: weight.value })
+          setCounts[exerciseId] = next
+          addSetChip(setList, set)
+          reps.value = ''; weight.value = ''; reps.focus()
+        } catch (err) {
+          console.error(err)
+          exStatus.textContent = "Couldn't add set."
+          exStatus.className = 'status err'
+        } finally {
+          btn.disabled = false
+        }
+      })
+
+      mini.append(reps, weight, btn)
+      block.appendChild(mini)
+      listEl.appendChild(block)
     }
 
-    function collectEntry() {
-      const exercises = []
-      for (const block of exWrap.querySelectorAll('.ex-block')) {
-        const workoutId = block.querySelector('.ex-pick select').value
-        if (!workoutId) continue   // skip un-chosen exercise rows
-        const sets = [...block.querySelectorAll('.set-row')].map(r => ({
-          reps:   r.querySelector('.reps').value,
-          weight: r.querySelector('.weight').value,
-        }))
-        exercises.push({ workoutId, sets })
-      }
-      return {
-        userId: userSel.value,
-        performedDate: dateInput.value,
-        title: titleInput.value.trim(),
-        exercises,
-      }
-    }
-
-    async function save() {
-      const entry = collectEntry()
-      if (!entry.userId)        return setStatus('Pick a person first.', 'err')
-      if (!entry.performedDate) return setStatus('Pick a date.', 'err')
-      if (!entry.exercises.length) return setStatus('Add at least one exercise.', 'err')
-
-      saveBtn.disabled = true
-      setStatus('Saving…')
+    async function addExerciseHandler() {
+      const workoutId = exPick.value
+      if (!workoutId) { exStatus.textContent = 'Pick an exercise.'; exStatus.className = 'status err'; return }
+      addExBtn.disabled = true
+      exStatus.textContent = ''
       try {
-        await saveWorkoutDay(entry)
-        // Hand off to the logs page, filtered to this person (uses the ?user= param).
-        window.location.href = 'workout-logs.html?user=' + encodeURIComponent(entry.userId)
+        const { exerciseId, set } = await addExercise({
+          dayId, workoutId, reps: exReps.value, weight: exWeight.value,
+        })
+        const name = exPick.selectedOptions[0].textContent
+        makeExerciseBlock(exerciseId, name, set ? [set] : [])
+        exPick.value = ''; exReps.value = ''; exWeight.value = ''
+        exStatus.textContent = ''; exStatus.className = 'status'
       } catch (err) {
         console.error(err)
-        setStatus("Couldn't save. Check the console and your RLS policies.", 'err')
-        saveBtn.disabled = false
+        exStatus.textContent = "Couldn't add exercise."
+        exStatus.className = 'status err'
+      } finally {
+        addExBtn.disabled = false
       }
+    }
+
+    async function restoreSession(id) {
+      const day = await getWorkoutDay(id)
+      dayId  = day.id
+      userId = day.user_id
+      showSummary(usersById[userId] || 'Unknown', day.performed_date, day.title)
+
+      const exercises = [...(day.sweatsheet_workout_exercises || [])].sort((a, b) => a.id - b.id)
+      for (const ex of exercises) {
+        const name = ex.sweatsheet_workouts?.name || '—'
+        makeExerciseBlock(ex.id, name, ex.sweatsheet_workout_sets || [])
+      }
+
+      buildWorkoutOptions(exPick)
+      addExBtn.addEventListener('click', addExerciseHandler)
+      viewLogsBtn.addEventListener('click', () => {
+        location.href = 'workout-logs.html' + (userId ? '?user=' + encodeURIComponent(userId) : '')
+      })
+
+      sessionEl.classList.remove('hidden')
     }
 
     async function init() {
-      dateInput.value = todayLocal()
+      const dayParam = new URLSearchParams(location.search).get('day')
+      if (!dayParam) { noSessionEl.classList.remove('hidden'); return }
 
       try {
         const [users, cat] = await Promise.all([getUsers(), getWorkouts()])
         workouts = cat
-        for (const u of users) {
-          const opt = document.createElement('option')
-          opt.value = u.id
-          opt.textContent = u.name
-          userSel.appendChild(opt)
-        }
-        // Pre-select a person if one was passed in the URL (matches the logs page).
-        const fromUrl = new URLSearchParams(location.search).get('user')
-        if (fromUrl && [...userSel.options].some(o => o.value === fromUrl)) {
-          userSel.value = fromUrl
-        }
+        for (const u of users) usersById[u.id] = u.name
+        await restoreSession(dayParam)
       } catch (err) {
         console.error(err)
-        setStatus("Couldn't load people or exercises. Check your connection.", 'err')
-        return
+        noSessionEl.classList.remove('hidden')   // stale/deleted session or load error
       }
-
-      addExerciseBlock()   // start with one exercise
-      addExBtn.addEventListener('click', addExerciseBlock)
-      saveBtn.addEventListener('click', save)
     }
 
     init()
