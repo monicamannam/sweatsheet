@@ -66,6 +66,16 @@
     .modal .field input:focus { outline: 2px solid #6c3fcf; outline-offset: 1px; }
     .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 4px; }
 
+    /* Past-title chips (tap to reuse a title). Row hides itself when empty. */
+    .title-chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 2px 0 4px; }
+    .title-chips:empty { display: none; }
+    .title-chip {
+      font: inherit; font-size: .8rem; cursor: pointer;
+      padding: 5px 12px; border-radius: 999px;
+      border: 1px solid #cdbff0; background: #f3eefc; color: #5a37b0;
+    }
+    .title-chip.active { background: #6c3fcf; border-color: #6c3fcf; color: #fff; }
+
     .btn { font: inherit; font-weight: 600; cursor: pointer; border: none; border-radius: 10px; padding: 10px 16px; background: #6c3fcf; color: #fff; }
     .btn:disabled { opacity: .5; cursor: default; }
     .btn-ghost { background: transparent; color: #6c3fcf; border: 1px solid #cdbff0; }
@@ -105,7 +115,9 @@
       </div>
       <div class="field">
         <label for="ns-title">Title <span style="font-weight:400;opacity:.6">(optional)</span></label>
-        <input type="text" id="ns-title" placeholder="e.g. Push Day, Legs…" />
+        <div class="title-chips" id="ns-chips"></div>
+        <input type="text" id="ns-title" list="ns-title-list" placeholder="Pick a recent title, or type a new one…" />
+        <datalist id="ns-title-list"></datalist>
       </div>
       <span class="status err" id="ns-status"></span>
       <div class="modal-actions">
@@ -116,7 +128,7 @@
   </div>
 
   <script type="module">
-    import { getUsers, getWorkoutDays, createWorkoutDay } from './db.js'
+    import { getUsers, getWorkoutDays, getTitlesForUser, createWorkoutDay } from './db.js'
 
     const userFilter   = document.getElementById('user-filter')
     const container    = document.getElementById('days')
@@ -125,9 +137,16 @@
     const modal        = document.getElementById('ns-modal')
     const nsDate       = document.getElementById('ns-date')
     const nsTitle      = document.getElementById('ns-title')
+    const nsChips      = document.getElementById('ns-chips')
+    const nsTitleList  = document.getElementById('ns-title-list')
     const nsStatus     = document.getElementById('ns-status')
     const nsCreate     = document.getElementById('ns-create')
     const nsCancel     = document.getElementById('ns-cancel')
+
+    // Past titles for the currently selected person (most-used first).
+    // Held here so createSession() can snap a typed title onto an
+    // existing one (case-insensitive), keeping naming consistent.
+    let pastTitles = []
 
     function escapeHtml(str) {
       return String(str).replace(/[&<>"']/g, c => (
@@ -345,21 +364,67 @@
       nsDate.value = todayPacific()
       nsTitle.value = ''
       nsStatus.textContent = ''
+      nsChips.innerHTML = ''        // cleared until this person's titles load
+      nsTitleList.innerHTML = ''
+      pastTitles = []
       modal.classList.remove('hidden')
       nsTitle.focus()
+      loadTitleSuggestions()       // fire-and-forget; modal is already usable
     }
     function closeModal() { modal.classList.add('hidden') }
+
+    // Pull this person's past titles, then build the chips (top 5)
+    // and the full autocomplete list.
+    async function loadTitleSuggestions() {
+      const forUser = userFilter.value
+      let titles = []
+      try {
+        titles = await getTitlesForUser(forUser)
+      } catch (err) {
+        console.error(err)   // chips just won't show; free-text input still works
+        return
+      }
+      if (modal.classList.contains('hidden') || userFilter.value !== forUser) return  // stale
+      pastTitles = titles
+
+      nsTitleList.innerHTML = titles
+        .map(t => `<option value="${escapeHtml(t.title)}"></option>`)
+        .join('')
+
+      nsChips.innerHTML = titles.slice(0, 5)
+        .map(t => `<button type="button" class="title-chip" data-title="${escapeHtml(t.title)}">${escapeHtml(t.title)}</button>`)
+        .join('')
+
+      syncActiveChip()
+    }
+
+    // Highlight whichever chip matches the current input (if any).
+    function syncActiveChip() {
+      const v = nsTitle.value.replace(/\s+/g, ' ').trim().toLowerCase()
+      nsChips.querySelectorAll('.title-chip').forEach(c =>
+        c.classList.toggle('active', c.dataset.title.toLowerCase() === v)
+      )
+    }
 
     async function createSession() {
       if (!userFilter.value) return
       if (!nsDate.value) { nsStatus.textContent = 'Pick a date.'; return }
+
+      // Normalise: trim + collapse inner whitespace, then snap onto an
+      // existing title if one matches case-insensitively.
+      let title = nsTitle.value.replace(/\s+/g, ' ').trim()
+      if (title) {
+        const match = pastTitles.find(t => t.title.toLowerCase() === title.toLowerCase())
+        if (match) title = match.title
+      }
+
       nsCreate.disabled = true
       nsStatus.textContent = ''
       try {
         const dayId = await createWorkoutDay({
           userId: userFilter.value,
           performedDate: nsDate.value,
-          title: nsTitle.value.trim(),
+          title,
         })
         // Hand off to the log page for this brand-new session.
         location.href = 'log-workout.html?day=' + encodeURIComponent(dayId)
@@ -402,6 +467,18 @@
         if (!btn) return
         location.href = 'log-workout.html?day=' + encodeURIComponent(btn.dataset.editDay)
       })
+
+      // Tap a past-title chip to fill the input.
+      nsChips.addEventListener('click', e => {
+        const btn = e.target.closest('.title-chip')
+        if (!btn) return
+        nsTitle.value = btn.dataset.title
+        syncActiveChip()
+        nsTitle.focus()
+      })
+
+      // Keep the chip highlight in sync while typing.
+      nsTitle.addEventListener('input', syncActiveChip)
 
       newSessionBtn.addEventListener('click', openModal)
       nsCancel.addEventListener('click', closeModal)

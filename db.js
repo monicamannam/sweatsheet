@@ -73,6 +73,36 @@ export async function getWorkoutDays(userId) {
   return data ?? []
 }
 
+// ── Distinct session titles this person has used before ─────
+// Powers the "pick a past title" chips + autocomplete in the
+// new-session modal. Returns [{ title, count }] ordered by how
+// often each title is used (most-used first); recency breaks
+// ties because rows arrive newest-first and the sort is stable.
+// Titles are de-duplicated case-insensitively, keeping the most
+// recent spelling as the display label.
+export async function getTitlesForUser(userId) {
+  const { data, error } = await supabase
+    .from('sweatsheet_workout_days')
+    .select('title, created_at')
+    .eq('user_id', userId)
+    .not('title', 'is', null)
+    .order('created_at', { ascending: false })
+
+  if (error) throw error
+
+  const byKey = new Map()
+  for (const row of data ?? []) {
+    const title = (row.title || '').replace(/\s+/g, ' ').trim()
+    if (!title) continue
+    const key = title.toLowerCase()
+    const existing = byKey.get(key)
+    if (existing) existing.count++
+    else byKey.set(key, { title, count: 1 })   // first seen = most recent spelling
+  }
+
+  return [...byKey.values()].sort((a, b) => b.count - a.count)
+}
+
 // ── Exercise catalog for the picker (excludes soft-deleted) ──
 export async function getWorkouts() {
   const { data, error } = await supabase
