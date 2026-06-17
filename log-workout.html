@@ -51,7 +51,16 @@
 
     .add-ex-form { border-top: 1px dashed #d8d2e6; margin-top: 16px; padding-top: 16px; }
     .add-ex-form .field { margin-bottom: 10px; }
-    .new-sets-label { font-size: .8rem; font-weight: 600; opacity: .7; margin: 4px 0 8px; }
+
+    /* exercise dropdown on its own line; reps + weight + Save share the next */
+    .add-ex-row { display: flex; gap: 8px; align-items: center; }
+    .add-ex-row #new-sets { flex: 1; }
+    .add-ex-row .set-row { margin-bottom: 0; }
+
+    /* session header: date + title on one line, Done editing pinned right */
+    .session-top { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
+    .session-top .session-summary { flex: 1; margin-bottom: 0; }
+    .session-top #view-logs { margin-left: auto; white-space: nowrap; }
 
     .form-actions { display: flex; gap: 10px; align-items: center; margin-top: 16px; }
     .status     { font-size: .9rem; }
@@ -77,29 +86,28 @@
 
     <!-- The active session -->
     <div class="panel hidden" id="session">
-      <div class="session-summary" id="summary"></div>
+      <div class="session-top">
+        <div class="session-summary" id="summary"></div>
+        <button type="button" class="btn-ghost btn btn-sm" id="view-logs">Done editing</button>
+      </div>
 
       <div id="exercise-list"></div>
 
       <div class="add-ex-form">
         <div class="field">
-          <label for="ex-pick">Add an exercise</label>
+          <label for="ex-pick">New exercise</label>
           <div class="ex-pick">
             <select id="ex-pick"></select>
           </div>
         </div>
 
-        <div id="new-sets"></div>
-
-        <div class="form-actions">
-          <button type="button" class="btn btn-sm" id="add-exercise">Add exercise</button>
-          <span class="status" id="ex-status"></span>
+        <div class="add-ex-row">
+          <div id="new-sets"></div>
+          <button type="button" class="btn btn-sm" id="add-exercise">Save</button>
         </div>
+        <span class="status" id="ex-status"></span>
       </div>
 
-      <div class="form-actions">
-        <button type="button" class="btn-ghost btn" id="view-logs">Done editing</button>
-      </div>
     </div>
   </main>
 
@@ -264,7 +272,7 @@
       const weightI = row.querySelector('.weight')
 
       const addBtn = document.createElement('button')
-      addBtn.type = 'button'; addBtn.className = 'btn-ghost btn btn-sm'; addBtn.textContent = 'Save Set'
+      addBtn.type = 'button'; addBtn.className = 'btn-ghost btn btn-sm'; addBtn.textContent = 'Save'
       row.appendChild(addBtn)
 
       const submit = async () => {
