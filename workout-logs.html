@@ -226,44 +226,61 @@
       return `${y}-${m}-${d}`
     }
 
-    // FNV-1a hash — same title always maps to the same number (and color).
-    function hashStr(str) {
-      let h = 2166136261
-      for (let i = 0; i < str.length; i++) {
-        h ^= str.charCodeAt(i)
-        h = Math.imul(h, 16777619)
-      }
-      return h >>> 0
-    }
+    // Fixed calendar palette. Each unique title claims the first unused
+    // color, in the order titles first appear (oldest first) within the
+    // visible window. Past 8 distinct titles, colors are reused by cycling.
+    const CAL_PALETTE = [
+      '#e5484d', // red
+      '#2f6fed', // blue
+      '#8b5cf6', // purple
+      '#eab308', // yellow
+      '#f97316', // orange
+      '#6b7280', // grey
+      '#16a34a', // green
+      '#1f2937', // black
+    ]
+    const CAL_UNTITLED = '#c7c1d6'   // sessions with no title
 
-    // A unique, stable color per workout title. Blank titles get a neutral grey.
-    function colorForTitle(rawTitle) {
-      const t = (rawTitle || '').trim()
-      if (!t) return { fill: '#c7c1d6', label: 'Untitled', key: '' }
-      const h = hashStr(t.toLowerCase())
-      const hue   = h % 360
-      const sat   = 58 + (h >> 9)  % 24   // 58–81%
-      const light = 52 + (h >> 17) % 10   // 52–61%
-      return { fill: `hsl(${hue} ${sat}% ${light}%)`, label: t, key: t.toLowerCase() }
-    }
+    function normKey(raw)    { return (raw || '').replace(/\s+/g, ' ').trim().toLowerCase() }
+    function cleanTitle(raw) { return (raw || '').replace(/\s+/g, ' ').trim() }
 
     function renderCalendar(days) {
-      // date -> title. Days arrive newest-first, so the latest session that day wins.
-      const byDate = new Map()
-      for (const d of days) {
-        if (d.performed_date && !byDate.has(d.performed_date)) {
-          byDate.set(d.performed_date, d.title || '')
-        }
-      }
-
-      // ~53 weeks ending today (Pacific), starting on a Sunday.
+      // Window: the last 3 months, ending today (Pacific), starting on a Sunday.
       const [ty, tm, td] = todayPacific().split('-').map(Number)
       const today = new Date(ty, tm - 1, td)
-      const cur = new Date(today)
-      cur.setDate(cur.getDate() - 363)
-      cur.setDate(cur.getDate() - cur.getDay())   // back up to Sunday
+      const start = new Date(today)
+      start.setMonth(start.getMonth() - 3)
+      start.setDate(start.getDate() - start.getDay())   // back up to Sunday
 
+      const startYmd = ymdLocal(start)
+      const todayYmd = ymdLocal(today)
+
+      // Only days inside the window matter for colors and cells.
+      const inWindow = days.filter(d =>
+        d.performed_date && d.performed_date >= startYmd && d.performed_date <= todayYmd
+      )
+
+      // Assign palette colors by first appearance (oldest first). Days arrive
+      // newest-first, so walk them in reverse. Blank titles claim no slot.
+      const colorByKey = new Map()
+      for (let i = inWindow.length - 1; i >= 0; i--) {
+        const key = normKey(inWindow[i].title)
+        if (!key || colorByKey.has(key)) continue
+        colorByKey.set(key, {
+          fill: CAL_PALETTE[colorByKey.size % CAL_PALETTE.length],
+          label: cleanTitle(inWindow[i].title),
+        })
+      }
+
+      // date -> raw title (newest session that day wins).
+      const byDate = new Map()
+      for (const d of inWindow) {
+        if (!byDate.has(d.performed_date)) byDate.set(d.performed_date, d.title || '')
+      }
+
+      // Week columns from start -> today.
       const weeks = []
+      const cur = new Date(start)
       while (cur <= today) {
         const col = []
         for (let i = 0; i < 7; i++) {
@@ -273,15 +290,17 @@
         weeks.push(col)
       }
 
+      let hasUntitled = false
       const weeksHtml = weeks.map(col => {
         const cells = col.map(date => {
           if (date > today) return `<div class="cal-cell" style="visibility:hidden"></div>`
           const key = ymdLocal(date)
-          const has = byDate.has(key)
-          if (!has) return `<div class="cal-cell" title="${escapeHtml(fmtDate(key))}"></div>`
-          const title = byDate.get(key)
-          const fill  = colorForTitle(title).fill
-          const tip   = fmtDate(key) + ' — ' + (title && title.trim() ? title : 'Untitled')
+          if (!byDate.has(key)) return `<div class="cal-cell" title="${escapeHtml(fmtDate(key))}"></div>`
+          const raw = byDate.get(key)
+          const k = normKey(raw)
+          if (!k) hasUntitled = true
+          const fill = k ? colorByKey.get(k).fill : CAL_UNTITLED
+          const tip  = fmtDate(key) + ' — ' + (k ? cleanTitle(raw) : 'Untitled')
           return `<div class="cal-cell" style="background:${fill}" title="${escapeHtml(tip)}"></div>`
         }).join('')
         return `<div class="cal-week">${cells}</div>`
@@ -297,15 +316,11 @@
         return `<span style="left:${i * COL}px">${name}</span>`
       }).join('')
 
-      // Legend of the unique titles present, alphabetised.
-      const seen = new Map()
-      for (const t of byDate.values()) {
-        const c = colorForTitle(t)
-        if (!seen.has(c.key)) seen.set(c.key, c)
-      }
-      const legendItems = [...seen.values()].sort((a, b) => a.label.localeCompare(b.label))
-      const legendHtml = legendItems.length
-        ? `<div class="cal-legend">` + legendItems.map(c =>
+      // Legend: titled entries A-Z, then Untitled if any appear.
+      const legend = [...colorByKey.values()].sort((a, b) => a.label.localeCompare(b.label))
+      if (hasUntitled) legend.push({ fill: CAL_UNTITLED, label: 'Untitled' })
+      const legendHtml = legend.length
+        ? `<div class="cal-legend">` + legend.map(c =>
             `<span class="cal-legend-item"><span class="cal-swatch" style="background:${c.fill}"></span>${escapeHtml(c.label)}</span>`
           ).join('') + `</div>`
         : ''

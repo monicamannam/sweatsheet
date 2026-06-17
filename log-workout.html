@@ -89,9 +89,7 @@
           </div>
         </div>
 
-        <div class="new-sets-label">Sets</div>
         <div id="new-sets"></div>
-        <button type="button" class="btn-link" id="add-set-row">+ Add set</button>
 
         <div class="form-actions">
           <button type="button" class="btn btn-sm" id="add-exercise">Add exercise</button>
@@ -100,7 +98,7 @@
       </div>
 
       <div class="form-actions">
-        <button type="button" class="btn-ghost btn" id="view-logs">Done — view logs</button>
+        <button type="button" class="btn-ghost btn" id="view-logs">Done editing</button>
       </div>
     </div>
   </main>
@@ -116,7 +114,6 @@
     const listEl      = document.getElementById('exercise-list')
     const exPick      = document.getElementById('ex-pick')
     const newSetsEl   = document.getElementById('new-sets')
-    const addSetRowBtn= document.getElementById('add-set-row')
     const addExBtn    = document.getElementById('add-exercise')
     const exStatus    = document.getElementById('ex-status')
     const viewLogsBtn = document.getElementById('view-logs')
@@ -177,13 +174,11 @@
     }
 
     // Build a reps/weight input row. `onEnter` fires when Enter is pressed in
-    // either field (used to chain quickly into a fresh row); `onRemove` removes it.
+    // either field; pass `onRemove` to include an ✕ button (neither row here
+    // uses one — sets are added or saved one at a time).
     function buildSetRow({ onEnter, onRemove } = {}) {
       const row = document.createElement('div')
       row.className = 'set-row'
-
-      const no = document.createElement('span')
-      no.className = 'set-no'
 
       const reps = document.createElement('input')
       reps.type = 'number'; reps.min = '0'; reps.step = '1'; reps.placeholder = 'reps'; reps.className = 'reps'
@@ -197,26 +192,22 @@
         weight.addEventListener('keydown', onKey)
       }
 
-      const x = document.createElement('button')
-      x.type = 'button'; x.className = 'btn-x'; x.title = 'Remove set'; x.textContent = '✕'
-      if (onRemove) x.addEventListener('click', () => onRemove(row))
+      row.append(reps, weight)
 
-      row.append(no, reps, weight, x)
+      if (onRemove) {
+        const x = document.createElement('button')
+        x.type = 'button'; x.className = 'btn-x'; x.title = 'Remove set'; x.textContent = '✕'
+        x.addEventListener('click', () => onRemove(row))
+        row.appendChild(x)
+      }
+
       return row
     }
 
-    // --- the "add exercise" set grid ---
-    function renumberNewSets() {
-      [...newSetsEl.querySelectorAll('.set-no')].forEach((el, i) => { el.textContent = 'Set ' + (i + 1) })
-    }
-
+    // --- the "add exercise" set row (one reps/weight row) ---
     function addNewSetRow(focus = false) {
-      const row = buildSetRow({
-        onEnter: () => addNewSetRow(true),
-        onRemove: r => { r.remove(); renumberNewSets() },
-      })
+      const row = buildSetRow()
       newSetsEl.appendChild(row)
-      renumberNewSets()
       if (focus) row.querySelector('.reps').focus()
     }
 
@@ -271,11 +262,9 @@
       const row = buildSetRow()
       const repsI = row.querySelector('.reps')
       const weightI = row.querySelector('.weight')
-      row.querySelector('.set-no').textContent = '+ Set'
-      row.querySelector('.btn-x').remove()      // no remove button on the inline adder
 
       const addBtn = document.createElement('button')
-      addBtn.type = 'button'; addBtn.className = 'btn-ghost btn btn-sm'; addBtn.textContent = 'Add'
+      addBtn.type = 'button'; addBtn.className = 'btn-ghost btn btn-sm'; addBtn.textContent = 'Save Set'
       row.appendChild(addBtn)
 
       const submit = async () => {
@@ -339,7 +328,6 @@
 
       buildWorkoutOptions(exPick)
       addNewSetRow()            // seed the add-exercise grid with one row
-      addSetRowBtn.addEventListener('click', () => addNewSetRow(true))
       addExBtn.addEventListener('click', addExerciseHandler)
       viewLogsBtn.addEventListener('click', () => {
         location.href = 'workout-logs.html' + (userId ? '?user=' + encodeURIComponent(userId) : '')
