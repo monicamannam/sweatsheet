@@ -158,7 +158,7 @@ export async function createWorkoutDay({ userId, performedDate, title }) {
 export async function addExerciseWithSets({ dayId, workoutId, sets = [] }) {
   const { data: ex, error: exErr } = await supabase
     .from('sweatsheet_workout_exercises')
-    .insert({ day_id: dayId, workout_id: workoutId })
+    .insert({ workout_day_id: dayId, exercise_id: workoutId })
     .select('id')
     .single()
   if (exErr) throw exErr
@@ -169,7 +169,7 @@ export async function addExerciseWithSets({ dayId, workoutId, sets = [] }) {
       weight: s.weight === '' || s.weight == null ? null : Number(s.weight),
     }))
     .filter(s => s.reps !== null || s.weight !== null)
-    .map((s, i) => ({ exercise_id: ex.id, set_number: i + 1, ...s }))
+    .map((s, i) => ({ workout_exercise_id: ex.id, set_number: i + 1, ...s }))
 
   let inserted = []
   if (clean.length) {
@@ -188,7 +188,7 @@ export async function addSet({ exerciseId, setNumber, reps, weight }) {
   const { data, error } = await supabase
     .from('sweatsheet_workout_sets')
     .insert({
-      exercise_id: exerciseId,
+      workout_exercise_id: exerciseId,
       set_number: setNumber,
       reps:   reps   === '' || reps   == null ? null : Number(reps),
       weight: weight === '' || weight == null ? null : Number(weight),
