@@ -8,8 +8,14 @@
   <link rel="stylesheet" href="styles.css" />
   <script type="module" src="components.js"></script>
 
-  <!-- New-session button, edit buttons, and the modal. Move into styles.css if you prefer. -->
+  <!-- New-session button, edit buttons, modal, calendar. Move into styles.css if you prefer. -->
   <style>
+    /* Header layout: title + log button hug the left, the person dropdown
+       sits at the far right (where the button used to be). */
+    .logs-header { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    .logs-header h2 { margin: 0; }
+    .logs-header #user-filter { margin-left: auto; }
+
     .session-btn {
       font: inherit; font-weight: 600; cursor: pointer; white-space: nowrap;
       border: none; border-radius: 10px; padding: 9px 14px;
@@ -22,6 +28,24 @@
       border: 1px solid #cdbff0; background: transparent; color: #6c3fcf;
       border-radius: 8px; padding: 4px 10px;
     }
+
+    /* ── GitHub-style activity calendar ───────────────────────── */
+    .cal-wrap:empty { display: none; }          /* no border/space before a person is picked */
+    .cal-card { margin: 4px 0 20px; }
+    .cal-scroll { overflow-x: auto; padding-bottom: 4px; }
+    .cal-inner { display: inline-block; min-width: max-content; }
+    /* COL pitch below (15px) must match: .cal-cell width (12) + .cal-weeks gap (3). */
+    .cal-months { position: relative; height: 15px; margin-left: 30px; font-size: .68rem; color: #6b6580; }
+    .cal-months span { position: absolute; top: 0; white-space: nowrap; }
+    .cal-body { display: flex; gap: 4px; }      /* weekday col (26) + this gap (4) = 30 = months margin-left */
+    .cal-weekdays { display: flex; flex-direction: column; gap: 3px; width: 26px; }
+    .cal-weekdays div { height: 12px; line-height: 12px; font-size: .62rem; color: #6b6580; }
+    .cal-weeks { display: flex; gap: 3px; }
+    .cal-week { display: flex; flex-direction: column; gap: 3px; }
+    .cal-cell { width: 12px; height: 12px; border-radius: 3px; background: #eceaf2; }
+    .cal-legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 12px; font-size: .78rem; color: #4a4458; }
+    .cal-legend-item { display: inline-flex; align-items: center; gap: 6px; }
+    .cal-swatch { width: 12px; height: 12px; border-radius: 3px; display: inline-block; flex: none; }
 
     .modal-backdrop {
       position: fixed; inset: 0; background: rgba(20,12,40,.45);
@@ -56,11 +80,13 @@
   <main class="page">
     <div class="page-header logs-header">
       <h2>Workout Logs</h2>
+      <button class="session-btn" id="new-session" disabled title="Pick a person first">+ Log workout session</button>
       <select id="user-filter">
         <option value="">Select a person…</option>
       </select>
-      <button class="session-btn" id="new-session" disabled title="Pick a person first">+ Log workout session</button>
     </div>
+
+    <div id="calendar" class="cal-wrap"></div>
 
     <div id="days">
       <div class="center-state">Select a person to see their workouts.</div>
@@ -94,6 +120,7 @@
 
     const userFilter   = document.getElementById('user-filter')
     const container    = document.getElementById('days')
+    const calendarEl   = document.getElementById('calendar')
     const newSessionBtn= document.getElementById('new-session')
     const modal        = document.getElementById('ns-modal')
     const nsDate       = document.getElementById('ns-date')
@@ -169,6 +196,118 @@
       }).join('')
     }
 
+    // ── Activity calendar ─────────────────────────────────────────
+    // Keep COL in sync with CSS: .cal-cell width (12) + .cal-weeks gap (3).
+    const COL = 15
+
+    function ymdLocal(date) {
+      const y = date.getFullYear()
+      const m = String(date.getMonth() + 1).padStart(2, '0')
+      const d = String(date.getDate()).padStart(2, '0')
+      return `${y}-${m}-${d}`
+    }
+
+    // FNV-1a hash — same title always maps to the same number (and color).
+    function hashStr(str) {
+      let h = 2166136261
+      for (let i = 0; i < str.length; i++) {
+        h ^= str.charCodeAt(i)
+        h = Math.imul(h, 16777619)
+      }
+      return h >>> 0
+    }
+
+    // A unique, stable color per workout title. Blank titles get a neutral grey.
+    function colorForTitle(rawTitle) {
+      const t = (rawTitle || '').trim()
+      if (!t) return { fill: '#c7c1d6', label: 'Untitled', key: '' }
+      const h = hashStr(t.toLowerCase())
+      const hue   = h % 360
+      const sat   = 58 + (h >> 9)  % 24   // 58–81%
+      const light = 52 + (h >> 17) % 10   // 52–61%
+      return { fill: `hsl(${hue} ${sat}% ${light}%)`, label: t, key: t.toLowerCase() }
+    }
+
+    function renderCalendar(days) {
+      // date -> title. Days arrive newest-first, so the latest session that day wins.
+      const byDate = new Map()
+      for (const d of days) {
+        if (d.performed_date && !byDate.has(d.performed_date)) {
+          byDate.set(d.performed_date, d.title || '')
+        }
+      }
+
+      // ~53 weeks ending today (Pacific), starting on a Sunday.
+      const [ty, tm, td] = todayPacific().split('-').map(Number)
+      const today = new Date(ty, tm - 1, td)
+      const cur = new Date(today)
+      cur.setDate(cur.getDate() - 363)
+      cur.setDate(cur.getDate() - cur.getDay())   // back up to Sunday
+
+      const weeks = []
+      while (cur <= today) {
+        const col = []
+        for (let i = 0; i < 7; i++) {
+          col.push(new Date(cur))
+          cur.setDate(cur.getDate() + 1)
+        }
+        weeks.push(col)
+      }
+
+      const weeksHtml = weeks.map(col => {
+        const cells = col.map(date => {
+          if (date > today) return `<div class="cal-cell" style="visibility:hidden"></div>`
+          const key = ymdLocal(date)
+          const has = byDate.has(key)
+          if (!has) return `<div class="cal-cell" title="${escapeHtml(fmtDate(key))}"></div>`
+          const title = byDate.get(key)
+          const fill  = colorForTitle(title).fill
+          const tip   = fmtDate(key) + ' — ' + (title && title.trim() ? title : 'Untitled')
+          return `<div class="cal-cell" style="background:${fill}" title="${escapeHtml(tip)}"></div>`
+        }).join('')
+        return `<div class="cal-week">${cells}</div>`
+      }).join('')
+
+      // Month labels at the column where each month first appears.
+      let prevMonth = -1
+      const monthsHtml = weeks.map((col, i) => {
+        const m = col[0].getMonth()
+        if (m === prevMonth) return ''
+        prevMonth = m
+        const name = col[0].toLocaleDateString(undefined, { month: 'short' })
+        return `<span style="left:${i * COL}px">${name}</span>`
+      }).join('')
+
+      // Legend of the unique titles present, alphabetised.
+      const seen = new Map()
+      for (const t of byDate.values()) {
+        const c = colorForTitle(t)
+        if (!seen.has(c.key)) seen.set(c.key, c)
+      }
+      const legendItems = [...seen.values()].sort((a, b) => a.label.localeCompare(b.label))
+      const legendHtml = legendItems.length
+        ? `<div class="cal-legend">` + legendItems.map(c =>
+            `<span class="cal-legend-item"><span class="cal-swatch" style="background:${c.fill}"></span>${escapeHtml(c.label)}</span>`
+          ).join('') + `</div>`
+        : ''
+
+      calendarEl.innerHTML = `
+        <div class="cal-card">
+          <div class="cal-scroll">
+            <div class="cal-inner">
+              <div class="cal-months">${monthsHtml}</div>
+              <div class="cal-body">
+                <div class="cal-weekdays">
+                  <div></div><div>Mon</div><div></div><div>Wed</div><div></div><div>Fri</div><div></div>
+                </div>
+                <div class="cal-weeks">${weeksHtml}</div>
+              </div>
+            </div>
+          </div>
+          ${legendHtml}
+        </div>`
+    }
+
     // Read/write the ?user= param so a selection survives refresh and is shareable.
     function getUserParam() {
       return new URLSearchParams(window.location.search).get('user') || ''
@@ -187,11 +326,15 @@
     }
 
     async function loadDays(userId) {
+      calendarEl.innerHTML = ''
       container.innerHTML = `<div class="center-state"><div class="spinner"></div>Loading workouts…</div>`
       try {
-        renderDays(await getWorkoutDays(userId))
+        const days = await getWorkoutDays(userId)
+        renderCalendar(days)
+        renderDays(days)
       } catch (err) {
         console.error(err)
+        calendarEl.innerHTML = ''
         container.innerHTML = `<div class="center-state">Couldn't load workouts. Check your connection and try again.</div>`
       }
     }
@@ -248,6 +391,7 @@
         if (userFilter.value) {
           loadDays(userFilter.value)
         } else {
+          calendarEl.innerHTML = ''
           container.innerHTML = `<div class="center-state">Select a person to see their workouts.</div>`
         }
       })
