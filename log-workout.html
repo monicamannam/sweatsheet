@@ -129,6 +129,12 @@
     const setCounts = {}   // exerciseId -> highest set_number so far
 
     // --- helpers ---
+    function escapeHtml(str) {
+      return String(str).replace(/[&<>"']/g, c => (
+        { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+      ))
+    }
+
     function fmtDate(ymd) {
       if (!ymd) return ''
       const [y, m, d] = ymd.split('-').map(Number)
@@ -283,7 +289,7 @@
           repsI.value = ''; weightI.value = ''; repsI.focus()
         } catch (err) {
           console.error(err)
-          exStatus.textContent = "Couldn't add set."
+          exStatus.textContent = err && err.message ? `Couldn't add set — ${err.message}` : "Couldn't add set."
           exStatus.className = 'status err'
         } finally {
           addBtn.disabled = false
@@ -312,7 +318,7 @@
         resetAddForm()
       } catch (err) {
         console.error(err)
-        exStatus.textContent = "Couldn't add exercise."
+        exStatus.textContent = err && err.message ? `Couldn't add exercise — ${err.message}` : "Couldn't add exercise."
         exStatus.className = 'status err'
       } finally {
         addExBtn.disabled = false
@@ -353,6 +359,10 @@
         await restoreSession(dayParam)
       } catch (err) {
         console.error(err)
+        noSessionEl.querySelector('.center-state').innerHTML =
+          `Couldn't load this session.<br>` +
+          `<small style="opacity:.7">${escapeHtml(err && err.message ? err.message : String(err))}</small><br>` +
+          `<a href="workout-logs.html">Back to Workout Logs</a>`
         noSessionEl.classList.remove('hidden')
       }
     }
