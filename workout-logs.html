@@ -81,6 +81,12 @@
     .btn-ghost { background: transparent; color: #6c3fcf; border: 1px solid #cdbff0; }
     .status { font-size: .85rem; }
     .status.err { color: #c02; }
+
+    /* Saved sets always stack beneath the exercise name, so short and
+       long names line up the same way on mobile and desktop. */
+    .day-exercises .ex-row { display: block; }
+    .day-exercises .ex-row .ex-name { display: block; margin-bottom: 6px; }
+    .day-exercises .ex-row .set-list { display: flex; flex-wrap: wrap; gap: 6px; }
   </style>
 </head>
 <body>
