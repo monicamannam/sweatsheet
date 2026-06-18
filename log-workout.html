@@ -66,13 +66,11 @@
     .status     { font-size: .9rem; }
     .status.err { color: #c02; }
 
-    /* "Last time" reference panel — read-only, sits under the session */
+    /* "Last time" reference panel — mirrors the day cards on the
+       Workout Logs page (.day-head / .ex-row / .set-chip from styles.css). */
     #previous   { margin-top: 16px; }
-    .prev-head  { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
-    .prev-head .prev-label { font-weight: 600; }
-    .prev-head .prev-title { color: #6c3fcf; font-weight: 600; }
-    .prev-head .prev-when  { opacity: .7; font-size: .9rem; }
-    #previous .ex-block { background: #faf9fe; }
+    .prev-tag   { font-size: .72rem; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: #8a82a0; }
+    .prev-ago   { margin-left: auto; opacity: .7; font-size: .85rem; }
 
     .hidden     { display: none; }
   </style>
@@ -118,14 +116,16 @@
 
     </div>
 
-    <!-- Read-only: this person's most recent session with the same title -->
+    <!-- Read-only: this person's most recent session with the same title.
+         Same markup as a day card on the Workout Logs page. -->
     <div class="panel hidden" id="previous">
-      <div class="prev-head">
-        <span class="prev-label">Last time</span>
-        <span class="prev-title" id="prev-title"></span>
-        <span class="prev-when" id="prev-when"></span>
+      <div class="day-head">
+        <span class="prev-tag">Last time</span>
+        <span class="day-date" id="prev-date"></span>
+        <span class="day-title" id="prev-title"></span>
+        <span class="prev-ago" id="prev-ago"></span>
       </div>
-      <div id="prev-exercise-list"></div>
+      <div class="day-exercises" id="prev-exercises"></div>
     </div>
   </main>
 
@@ -144,9 +144,10 @@
     const exStatus    = document.getElementById('ex-status')
     const viewLogsBtn = document.getElementById('view-logs')
     const previousEl  = document.getElementById('previous')
-    const prevListEl  = document.getElementById('prev-exercise-list')
+    const prevDateEl  = document.getElementById('prev-date')
     const prevTitleEl = document.getElementById('prev-title')
-    const prevWhenEl  = document.getElementById('prev-when')
+    const prevAgoEl   = document.getElementById('prev-ago')
+    const prevExEl    = document.getElementById('prev-exercises')
 
     // --- state ---
     let dayId = null
@@ -360,35 +361,8 @@
       }
     }
 
-    // --- read-only exercise block for the "Last time" panel ---
-    function renderReadonlyBlock(container, name, sets = []) {
-      const block = document.createElement('div')
-      block.className = 'ex-block'
-
-      const nameEl = document.createElement('span')
-      nameEl.className = 'ex-name'; nameEl.textContent = name
-      block.appendChild(nameEl)
-
-      const setList = document.createElement('div')
-      setList.className = 'set-list'
-      if (sets.length) {
-        sets.slice().sort((a, b) => (a.set_number || 0) - (b.set_number || 0))
-            .forEach(s => {
-              const chip = document.createElement('span')
-              chip.className = 'set-chip'
-              chip.textContent = fmtSet(s)
-              setList.appendChild(chip)
-            })
-      } else {
-        const none = document.createElement('span')
-        none.className = 'day-empty'; none.textContent = 'no sets'
-        setList.appendChild(none)
-      }
-      block.appendChild(setList)
-      container.appendChild(block)
-    }
-
-    // Fetch + show the most recent prior session with this same title.
+    // Fetch + show the most recent prior session with this same title,
+    // rendered exactly like a day card on the Workout Logs page.
     // Best-effort: any failure just leaves the panel hidden, so the
     // core logging flow is never blocked by it.
     async function loadPrevious(title, excludeDayId, uid) {
@@ -405,14 +379,20 @@
       const exercises = [...(prev.sweatsheet_workout_exercises || [])].sort((a, b) => a.id - b.id)
       if (!exercises.length) return
 
-      prevListEl.innerHTML = ''
-      for (const ex of exercises) {
-        const name = ex.sweatsheet_workouts?.name || '—'
-        renderReadonlyBlock(prevListEl, name, ex.sweatsheet_workout_sets || [])
-      }
+      const body = exercises.map(ex => {
+        const exName = ex.sweatsheet_workouts?.name ? escapeHtml(ex.sweatsheet_workouts.name) : '—'
+        const sets = [...(ex.sweatsheet_workout_sets || [])]
+          .sort((a, b) => (a.set_number || 0) - (b.set_number || 0))
+        const chips = sets.length
+          ? sets.map(s => `<span class="set-chip">${escapeHtml(fmtSet(s))}</span>`).join('')
+          : `<span class="day-empty">no sets</span>`
+        return `<div class="ex-row"><span class="ex-name">${exName}</span><span class="set-list">${chips}</span></div>`
+      }).join('')
 
+      prevDateEl.textContent  = fmtDate(prev.performed_date)
       prevTitleEl.textContent = prev.title || title
-      prevWhenEl.textContent = `${fmtDate(prev.performed_date)} · ${agoLabel(prev.performed_date)}`
+      prevAgoEl.textContent   = agoLabel(prev.performed_date)
+      prevExEl.innerHTML      = body
       previousEl.classList.remove('hidden')
     }
 
