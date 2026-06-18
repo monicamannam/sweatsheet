@@ -139,6 +139,44 @@ export async function getWorkoutDay(dayId) {
   return data
 }
 
+// ── Escape ILIKE wildcards so a title is matched literally ──
+// % and _ are LIKE wildcards; \ is the escape char. Without this,
+// a title like "Day_1" would also match "DayX1".
+function escapeLike(s) {
+  return String(s).replace(/([\\%_])/g, '\\$1')
+}
+
+// ── The most recent OTHER day with the same title (read-only) ─
+// Powers the "Last time" reference panel on the log page: given the
+// session you're editing, find that person's previous session with
+// the same title and return it (exercises + sets), or null if none.
+// Matching is case-insensitive; the current day is excluded by id.
+export async function getPreviousDayByTitle({ userId, title, excludeDayId }) {
+  if (!userId || !title || !String(title).trim()) return null
+
+  const { data, error } = await supabase
+    .from('sweatsheet_workout_days')
+    .select(`
+      id,
+      performed_date,
+      title,
+      sweatsheet_workout_exercises (
+        id,
+        sweatsheet_workouts ( name ),
+        sweatsheet_workout_sets ( set_number, reps, weight )
+      )
+    `)
+    .eq('user_id', userId)
+    .ilike('title', escapeLike(title))
+    .neq('id', excludeDayId)
+    .order('performed_date', { ascending: false })
+    .order('created_at', { ascending: false })
+    .limit(1)
+
+  if (error) throw error
+  return data?.[0] ?? null
+}
+
 // ── Create a session (the day row only). Returns the new id. ─
 export async function createWorkoutDay({ userId, performedDate, title }) {
   const { data, error } = await supabase
