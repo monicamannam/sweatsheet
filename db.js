@@ -7,12 +7,15 @@
 
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm'
 
-// The publishable key is safe to ship in client code — it's
-// protected by your Supabase Row Level Security policies.
-const SUPABASE_URL      = 'https://axjdyxxwjqkzjptykjrk.supabase.co'
-const SUPABASE_ANON_KEY = 'sb_publishable_bxbvx2jVlmlqx_UgjGBqnA_CicT3EFM'
+async function loadConfig() {
+  const r = await fetch('/api/config', { cache: 'no-store' })
+  if (!r.ok) throw new Error('Config request failed with HTTP ' + r.status)
+  return r.json()
+}
 
-export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+const { supabaseUrl, supabaseAnonKey } = await loadConfig()
+
+export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
 // ── Categories, alphabetised ────────────────────────────────
 export async function getCategories() {
