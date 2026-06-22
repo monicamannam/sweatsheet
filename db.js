@@ -52,8 +52,21 @@ export async function getUsers() {
 }
 
 // ── Workout days for ONE person (newest first) ──────────────
-// Each day comes back with its exercises and the sets under each
-// exercise. Exercises and sets are sorted in the page.
+// Lightweight feed for the calendar. No exercise/set join here.
+export async function getWorkoutCalendarDays(userId) {
+  const { data, error } = await supabase
+    .from('sweatsheet_workout_days')
+    .select('id, performed_date, title, created_at')
+    .eq('user_id', userId)
+    .order('performed_date', { ascending: false })
+    .order('created_at', { ascending: false })
+
+  if (error) throw error
+  return data ?? []
+}
+
+// Detailed feed for the visible log list. Each day comes back with its
+// exercises and sets, capped to the latest 10 sessions.
 export async function getWorkoutDays(userId) {
   const { data, error } = await supabase
     .from('sweatsheet_workout_days')
@@ -71,6 +84,7 @@ export async function getWorkoutDays(userId) {
     .eq('user_id', userId)
     .order('performed_date', { ascending: false })
     .order('created_at', { ascending: false })
+    .limit(10)
 
   if (error) throw error
   return data ?? []

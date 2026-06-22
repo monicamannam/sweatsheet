@@ -134,7 +134,7 @@
   </div>
 
   <script type="module">
-    import { getUsers, getWorkoutDays, getTitlesForUser, createWorkoutDay } from './db.js'
+    import { getUsers, getWorkoutCalendarDays, getWorkoutDays, getTitlesForUser, createWorkoutDay } from './db.js'
 
     const userFilter   = document.getElementById('user-filter')
     const container    = document.getElementById('days')
@@ -369,9 +369,12 @@
       calendarEl.innerHTML = ''
       container.innerHTML = `<div class="center-state"><div class="spinner"></div>Loading workouts…</div>`
       try {
-        const days = await getWorkoutDays(userId)
-        renderCalendar(days)
-        renderDays(days)
+        const [calendarDays, logDays] = await Promise.all([
+          getWorkoutCalendarDays(userId),
+          getWorkoutDays(userId),
+        ])
+        renderCalendar(calendarDays)
+        renderDays(logDays)
       } catch (err) {
         console.error(err)
         calendarEl.innerHTML = ''
