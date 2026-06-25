@@ -145,6 +145,7 @@ export async function getWorkoutDay(dayId) {
       user_id,
       sweatsheet_workout_exercises (
         id,
+        exercise_id,
         sweatsheet_workouts ( name ),
         sweatsheet_workout_sets ( set_number, reps, weight )
       )
