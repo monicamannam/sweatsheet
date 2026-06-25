@@ -51,6 +51,10 @@
 
     .add-ex-form { border-top: 1px dashed #d8d2e6; margin-top: 16px; padding-top: 16px; }
     .add-ex-form .field { margin-bottom: 10px; }
+    .quick-add { margin-bottom: 10px; }
+    .quick-add-btn { width: 100%; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; text-align: left; }
+    .quick-add-btn .q-name { font-weight: 700; }
+    .quick-add-btn .q-set { opacity: .78; }
 
     /* exercise dropdown on its own line; reps + weight + Save share the next */
     .add-ex-row { display: flex; gap: 8px; align-items: center; }
@@ -77,6 +81,7 @@
     .day-exercises .ex-row { display: block; }
     .day-exercises .ex-row .ex-name { display: block; margin-bottom: 6px; }
     .day-exercises .ex-row .set-list { display: flex; flex-wrap: wrap; gap: 6px; }
+    .set-list .repeat-set { align-self: center; padding: 2px 6px; }
 
     .hidden     { display: none; }
   </style>
@@ -107,6 +112,7 @@
       <div id="exercise-list"></div>
 
       <div class="add-ex-form">
+        <div class="quick-add hidden" id="quick-add-prev"></div>
         <div class="field">
           <div class="ex-pick">
             <select id="ex-pick"></select>
@@ -154,6 +160,7 @@
     const prevTitleEl = document.getElementById('prev-title')
     const prevAgoEl   = document.getElementById('prev-ago')
     const prevExEl    = document.getElementById('prev-exercises')
+    const quickAddEl  = document.getElementById('quick-add-prev')
 
     // --- state ---
     let dayId = null
@@ -161,6 +168,8 @@
     let workouts = []
     let usersById = {}
     const setCounts = {}   // exerciseId -> highest set_number so far
+    const lastSets = {}    // exerciseId -> most recent saved set
+    let previousQuick = null
 
     // --- helpers ---
     function escapeHtml(str) {
@@ -201,6 +210,11 @@
       if (hasReps) return `${s.reps}`
       if (hasWeight) return `${w}`
       return '—'
+    }
+
+    function sortedSets(ex) {
+      return [...(ex.sweatsheet_workout_sets || [])]
+        .sort((a, b) => (a.set_number || 0) - (b.set_number || 0))
     }
 
     function buildWorkoutOptions(select) {
@@ -279,6 +293,64 @@
       }))
     }
 
+    async function addPreviousQuickExercise() {
+      if (!previousQuick) return
+      const btn = quickAddEl.querySelector('button')
+      if (btn) btn.disabled = true
+      exStatus.textContent = ''
+      exStatus.className = 'status'
+      try {
+        const { exerciseId, sets } = await addExerciseWithSets({
+          dayId,
+          workoutId: previousQuick.workoutId,
+          sets: [previousQuick.set],
+        })
+        makeExerciseBlock(exerciseId, previousQuick.name, sets)
+        exStatus.textContent = `${previousQuick.name} added.`
+      } catch (err) {
+        console.error(err)
+        exStatus.textContent = err && err.message ? `Couldn't add exercise — ${err.message}` : "Couldn't add exercise."
+        exStatus.className = 'status err'
+      } finally {
+        if (btn) btn.disabled = false
+      }
+    }
+
+    function setPreviousQuickAdd(prev) {
+      previousQuick = null
+      quickAddEl.classList.add('hidden')
+      quickAddEl.innerHTML = ''
+
+      const first = [...(prev.sweatsheet_workout_exercises || [])].sort((a, b) => a.id - b.id)[0]
+      if (!first || !first.exercise_id) return
+      const firstSet = sortedSets(first)[0]
+      if (!firstSet) return
+
+      const name = first.sweatsheet_workouts?.name || 'Exercise'
+      previousQuick = {
+        workoutId: first.exercise_id,
+        name,
+        set: { reps: firstSet.reps, weight: firstSet.weight },
+      }
+
+      const btn = document.createElement('button')
+      btn.type = 'button'
+      btn.className = 'btn btn-ghost btn-sm quick-add-btn'
+      const label = document.createElement('span')
+      label.textContent = 'Add from last time:'
+      const nameEl = document.createElement('span')
+      nameEl.className = 'q-name'
+      nameEl.textContent = name
+      const setEl = document.createElement('span')
+      setEl.className = 'q-set'
+      setEl.textContent = fmtSet(firstSet)
+      btn.append(label, nameEl, setEl)
+      btn.addEventListener('click', addPreviousQuickExercise)
+
+      quickAddEl.appendChild(btn)
+      quickAddEl.classList.remove('hidden')
+    }
+
     // --- exercise cards (with inline single +Set) ---
     function addSetChip(setListEl, set) {
       const empty = setListEl.querySelector('.day-empty')
@@ -286,7 +358,38 @@
       const chip = document.createElement('span')
       chip.className = 'set-chip'
       chip.textContent = fmtSet(set)
-      setListEl.appendChild(chip)
+      const repeat = setListEl.querySelector('.repeat-set')
+      if (repeat) setListEl.insertBefore(chip, repeat)
+      else setListEl.appendChild(chip)
+    }
+
+    function ensureRepeatButton(setListEl, exerciseId) {
+      if (setListEl.querySelector('.repeat-set')) return
+      const btn = document.createElement('button')
+      btn.type = 'button'
+      btn.className = 'btn-link repeat-set'
+      btn.textContent = 'Repeat set'
+      btn.addEventListener('click', async () => {
+        const last = lastSets[exerciseId]
+        if (!last) return
+        btn.disabled = true
+        exStatus.textContent = ''
+        exStatus.className = 'status'
+        try {
+          const next = (setCounts[exerciseId] || 0) + 1
+          const set = await addSet({ exerciseId, setNumber: next, reps: last.reps, weight: last.weight })
+          setCounts[exerciseId] = next
+          lastSets[exerciseId] = set
+          addSetChip(setListEl, set)
+        } catch (err) {
+          console.error(err)
+          exStatus.textContent = err && err.message ? `Couldn't repeat set — ${err.message}` : "Couldn't repeat set."
+          exStatus.className = 'status err'
+        } finally {
+          btn.disabled = false
+        }
+      })
+      setListEl.appendChild(btn)
     }
 
     function makeExerciseBlock(exerciseId, name, sets = []) {
@@ -302,9 +405,12 @@
       const setList = document.createElement('div')
       setList.className = 'set-list'
       if (sets.length) {
-        sets.slice().sort((a, b) => (a.set_number || 0) - (b.set_number || 0))
-            .forEach(s => addSetChip(setList, s))
+        const orderedSets = sets.slice().sort((a, b) => (a.set_number || 0) - (b.set_number || 0))
+        lastSets[exerciseId] = orderedSets[orderedSets.length - 1]
+        orderedSets.forEach(s => addSetChip(setList, s))
+        ensureRepeatButton(setList, exerciseId)
       } else {
+        delete lastSets[exerciseId]
         const none = document.createElement('span')
         none.className = 'day-empty'; none.textContent = 'no sets yet'
         setList.appendChild(none)
@@ -327,7 +433,9 @@
           const next = (setCounts[exerciseId] || 0) + 1
           const set = await addSet({ exerciseId, setNumber: next, reps: repsI.value, weight: weightI.value })
           setCounts[exerciseId] = next
+          lastSets[exerciseId] = set
           addSetChip(setList, set)
+          ensureRepeatButton(setList, exerciseId)
           repsI.value = ''; weightI.value = ''; repsI.focus()
         } catch (err) {
           console.error(err)
@@ -382,13 +490,14 @@
       }
       if (!prev) return
 
+      setPreviousQuickAdd(prev)
+
       const exercises = [...(prev.sweatsheet_workout_exercises || [])].sort((a, b) => a.id - b.id)
       if (!exercises.length) return
 
       const body = exercises.map(ex => {
         const exName = ex.sweatsheet_workouts?.name ? escapeHtml(ex.sweatsheet_workouts.name) : '—'
-        const sets = [...(ex.sweatsheet_workout_sets || [])]
-          .sort((a, b) => (a.set_number || 0) - (b.set_number || 0))
+        const sets = sortedSets(ex)
         const chips = sets.length
           ? sets.map(s => `<span class="set-chip">${escapeHtml(fmtSet(s))}</span>`).join('')
           : `<span class="day-empty">no sets</span>`

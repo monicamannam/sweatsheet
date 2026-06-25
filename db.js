@@ -179,6 +179,7 @@ export async function getPreviousDayByTitle({ userId, title, excludeDayId }) {
       title,
       sweatsheet_workout_exercises (
         id,
+        exercise_id,
         sweatsheet_workouts ( name ),
         sweatsheet_workout_sets ( set_number, reps, weight )
       )
