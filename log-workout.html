@@ -51,7 +51,7 @@
     .add-ex-form { border-top: 1px dashed #d8d2e6; margin-top: 16px; padding-top: 16px; }
     .add-ex-form .field { margin-bottom: 10px; }
     .quick-add { margin-bottom: 10px; }
-    .quick-add-btn { width: 100%; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; text-align: left; justify-content: flex-start; }
+    .quick-add-btn { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; text-align: left; justify-content: flex-start; }
     .quick-add-btn .q-name { font-weight: 700; }
     .quick-add-btn .q-set { opacity: .78; }
 
@@ -342,13 +342,15 @@
       const btn = document.createElement('button')
       btn.type = 'button'
       btn.className = 'btn btn-sm quick-add-btn'
+      const label = document.createElement('span')
+      label.textContent = 'Quick log:'
       const nameEl = document.createElement('span')
       nameEl.className = 'q-name'
       nameEl.textContent = name
       const setEl = document.createElement('span')
       setEl.className = 'q-set'
       setEl.textContent = fmtSet(firstSet)
-      btn.append(nameEl, setEl)
+      btn.append(label, nameEl, setEl)
       btn.addEventListener('click', addPreviousQuickExercise)
 
       quickAddEl.appendChild(btn)
