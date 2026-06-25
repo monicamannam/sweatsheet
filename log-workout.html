@@ -169,6 +169,7 @@
     const setCounts = {}   // exerciseId -> highest set_number so far
     const lastSets = {}    // exerciseId -> most recent saved set
     const loggedWorkoutIds = new Set()
+    const loggedExerciseNames = new Set()
     let previousQuick = null
     let previousSessions = []
 
@@ -222,10 +223,14 @@
       return id === null || id === undefined || id === '' ? '' : String(id)
     }
 
+    function exerciseNameKey(name) {
+      return String(name || '').replace(/\s+/g, ' ').trim().toLowerCase()
+    }
+
     function workoutIdByName(name) {
-      const clean = String(name || '').trim().toLowerCase()
+      const clean = exerciseNameKey(name)
       if (!clean) return ''
-      const match = workouts.find(w => String(w.name || '').trim().toLowerCase() === clean)
+      const match = workouts.find(w => exerciseNameKey(w.name) === clean)
       return workoutKey(match?.id)
     }
 
@@ -236,6 +241,12 @@
     function markWorkoutLogged(workoutId) {
       const key = workoutKey(workoutId)
       if (key) loggedWorkoutIds.add(key)
+    }
+
+    function markExerciseLogged(name, workoutId = null) {
+      markWorkoutLogged(workoutId || workoutIdByName(name))
+      const key = exerciseNameKey(name)
+      if (key) loggedExerciseNames.add(key)
     }
 
     function buildWorkoutOptions(select) {
@@ -351,7 +362,11 @@
           .sort((a, b) => a.id - b.id)
           .find(ex => {
             const workoutId = workoutIdForExerciseRow(ex)
-            return workoutId && !loggedWorkoutIds.has(workoutId) && sortedSets(ex).length
+            const nameKey = exerciseNameKey(ex.sweatsheet_workouts?.name)
+            const alreadyLogged =
+              (workoutId && loggedWorkoutIds.has(workoutId)) ||
+              (nameKey && loggedExerciseNames.has(nameKey))
+            return workoutId && !alreadyLogged && sortedSets(ex).length
           })
         if (first) break
       }
@@ -428,7 +443,7 @@
     }
 
     function makeExerciseBlock(exerciseId, name, sets = [], workoutId = null) {
-      markWorkoutLogged(workoutId || workoutIdByName(name))
+      markExerciseLogged(name, workoutId)
       setCounts[exerciseId] = sets.reduce((m, s) => Math.max(m, s.set_number || 0), 0)
 
       const block = document.createElement('div')
