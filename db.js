@@ -172,13 +172,6 @@ function escapeLike(s) {
 export async function getPreviousDayByTitle({ userId, title, excludeDayId }) {
   if (!userId || !title || !String(title).trim()) return null
 
-  const days = await getPreviousDaysByTitle({ userId, title, excludeDayId, limit: 1 })
-  return days[0] ?? null
-}
-
-export async function getPreviousDaysByTitle({ userId, title, excludeDayId, limit = 8 }) {
-  if (!userId || !title || !String(title).trim()) return []
-
   const { data, error } = await supabase
     .from('sweatsheet_workout_days')
     .select(`
@@ -197,10 +190,10 @@ export async function getPreviousDaysByTitle({ userId, title, excludeDayId, limi
     .neq('id', excludeDayId)
     .order('performed_date', { ascending: false })
     .order('created_at', { ascending: false })
-    .limit(limit)
+    .limit(1)
 
   if (error) throw error
-  return data ?? []
+  return data?.[0] ?? null
 }
 
 // ── Create a session (the day row only). Returns the new id. ─

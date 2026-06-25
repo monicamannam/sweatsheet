@@ -143,7 +143,7 @@
   <site-nav active="log-workout"></site-nav>
 
   <script type="module">
-    import { getUsers, getWorkouts, addExerciseWithSets, addSet, getWorkoutDay, getPreviousDaysByTitle } from './db.js'
+    import { getUsers, getWorkouts, addExerciseWithSets, addSet, getWorkoutDay, getPreviousDayByTitle } from './db.js'
 
     const noSessionEl = document.getElementById('no-session')
     const sessionEl   = document.getElementById('session')
@@ -169,9 +169,8 @@
     const setCounts = {}   // exerciseId -> highest set_number so far
     const lastSets = {}    // exerciseId -> most recent saved set
     const loggedWorkoutIds = new Set()
-    const loggedExerciseNames = new Set()
     let previousQuick = null
-    let previousSessions = []
+    let previousSession = null
 
     // --- helpers ---
     function escapeHtml(str) {
@@ -243,21 +242,11 @@
       if (key) loggedWorkoutIds.add(key)
     }
 
-    function markExerciseLogged(name, workoutId = null) {
-      markWorkoutLogged(workoutId || workoutIdByName(name))
-      const key = exerciseNameKey(name)
-      if (key) loggedExerciseNames.add(key)
-    }
-
     function quickCandidateFromExercise(ex) {
       const name = ex.sweatsheet_workouts?.name || ''
-      const nameKey = exerciseNameKey(name)
       const workoutId = workoutIdForExerciseRow(ex)
-      const alreadyLogged =
-        (workoutId && loggedWorkoutIds.has(workoutId)) ||
-        (nameKey && loggedExerciseNames.has(nameKey))
       const sets = sortedSets(ex)
-      if ((!nameKey && !workoutId) || alreadyLogged || !sets.length) return null
+      if (!workoutId || loggedWorkoutIds.has(workoutId) || !sets.length) return null
       const latestSet = sets[sets.length - 1]
       if (!latestSet) return null
       return {
@@ -266,38 +255,6 @@
         set: { reps: latestSet.reps, weight: latestSet.weight },
         displaySet: latestSet,
       }
-    }
-
-    function quickCandidateDebugRow(prev, ex) {
-      const name = ex.sweatsheet_workouts?.name || ''
-      const nameKey = exerciseNameKey(name)
-      const workoutId = workoutIdForExerciseRow(ex)
-      const sets = sortedSets(ex)
-      const loggedById = !!workoutId && loggedWorkoutIds.has(workoutId)
-      const loggedByName = !!nameKey && loggedExerciseNames.has(nameKey)
-      let reason = 'eligible'
-      if (!nameKey && !workoutId) reason = 'missing name/id'
-      else if (loggedById) reason = 'already logged by id'
-      else if (loggedByName) reason = 'already logged by name'
-      else if (!sets.length) reason = 'no sets'
-      return {
-        day: prev.performed_date,
-        title: prev.title || '',
-        exercise: name || '(unnamed)',
-        workoutId: workoutId || '(none)',
-        sets: sets.length,
-        latest: sets.length ? fmtSet(sets[sets.length - 1]) : '',
-        reason,
-      }
-    }
-
-    function logQuickCandidateDebug(rows) {
-      if (!rows.length) return
-      console.groupCollapsed('Quick log candidates')
-      console.table(rows)
-      console.log('logged workout ids:', [...loggedWorkoutIds])
-      console.log('logged exercise names:', [...loggedExerciseNames])
-      console.groupEnd()
     }
 
     function buildWorkoutOptions(select) {
@@ -384,15 +341,13 @@
       exStatus.className = 'status'
       try {
         const addedName = previousQuick.name
-        const workoutId = previousQuick.workoutId || workoutIdByName(addedName)
-        if (!workoutId) throw new Error(`"${addedName}" is not in the exercise list.`)
         const { exerciseId, sets } = await addExerciseWithSets({
           dayId,
-          workoutId,
+          workoutId: previousQuick.workoutId,
           sets: [previousQuick.set],
         })
-        makeExerciseBlock(exerciseId, addedName, sets, workoutId)
-        if (previousSessions.length) setPreviousQuickAdd(previousSessions)
+        makeExerciseBlock(exerciseId, addedName, sets, previousQuick.workoutId)
+        if (previousSession) setPreviousQuickAdd(previousSession)
         exStatus.textContent = `${addedName} added.`
       } catch (err) {
         console.error(err)
@@ -403,24 +358,17 @@
       }
     }
 
-    function setPreviousQuickAdd(prevSessions) {
-      previousSessions = Array.isArray(prevSessions) ? prevSessions : (prevSessions ? [prevSessions] : [])
+    function setPreviousQuickAdd(prev) {
+      previousSession = prev
       previousQuick = null
       quickAddEl.classList.add('hidden')
       quickAddEl.innerHTML = ''
 
-      let candidate = null
-      const debugRows = []
-      for (const prev of previousSessions) {
-        const exercises = [...(prev.sweatsheet_workout_exercises || [])].sort((a, b) => a.id - b.id)
-        debugRows.push(...exercises.map(ex => quickCandidateDebugRow(prev, ex)))
-        candidate = exercises.map(quickCandidateFromExercise).find(Boolean)
-        if (candidate) break
-      }
-      if (!candidate) {
-        logQuickCandidateDebug(debugRows)
-        return
-      }
+      const candidate = [...(prev.sweatsheet_workout_exercises || [])]
+        .sort((a, b) => a.id - b.id)
+        .map(quickCandidateFromExercise)
+        .find(Boolean)
+      if (!candidate) return
 
       previousQuick = candidate
 
@@ -484,7 +432,7 @@
     }
 
     function makeExerciseBlock(exerciseId, name, sets = [], workoutId = null) {
-      markExerciseLogged(name, workoutId)
+      markWorkoutLogged(workoutId || workoutIdByName(name))
       setCounts[exerciseId] = sets.reduce((m, s) => Math.max(m, s.set_number || 0), 0)
 
       const block = document.createElement('div')
@@ -557,7 +505,7 @@
         })
         const name = exPick.selectedOptions[0].textContent
         makeExerciseBlock(exerciseId, name, sets, workoutId)
-        if (previousSessions.length) setPreviousQuickAdd(previousSessions)
+        if (previousSession) setPreviousQuickAdd(previousSession)
         resetAddForm()
       } catch (err) {
         console.error(err)
@@ -576,14 +524,14 @@
       if (!title) return
       let prev
       try {
-        const history = await getPreviousDaysByTitle({ userId: uid, title, excludeDayId, limit: 12 })
-        prev = history[0] || null
-        setPreviousQuickAdd(history)
+        prev = await getPreviousDayByTitle({ userId: uid, title, excludeDayId })
       } catch (err) {
         console.error("Couldn't load previous session", err)
         return
       }
       if (!prev) return
+
+      setPreviousQuickAdd(prev)
 
       const exercises = [...(prev.sweatsheet_workout_exercises || [])].sort((a, b) => a.id - b.id)
       if (!exercises.length) return
