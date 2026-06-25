@@ -249,6 +249,57 @@
       if (key) loggedExerciseNames.add(key)
     }
 
+    function quickCandidateFromExercise(ex) {
+      const name = ex.sweatsheet_workouts?.name || ''
+      const nameKey = exerciseNameKey(name)
+      const workoutId = workoutIdForExerciseRow(ex)
+      const alreadyLogged =
+        (workoutId && loggedWorkoutIds.has(workoutId)) ||
+        (nameKey && loggedExerciseNames.has(nameKey))
+      const sets = sortedSets(ex)
+      if ((!nameKey && !workoutId) || alreadyLogged || !sets.length) return null
+      const latestSet = sets[sets.length - 1]
+      if (!latestSet) return null
+      return {
+        workoutId,
+        name: name || 'Exercise',
+        set: { reps: latestSet.reps, weight: latestSet.weight },
+        displaySet: latestSet,
+      }
+    }
+
+    function quickCandidateDebugRow(prev, ex) {
+      const name = ex.sweatsheet_workouts?.name || ''
+      const nameKey = exerciseNameKey(name)
+      const workoutId = workoutIdForExerciseRow(ex)
+      const sets = sortedSets(ex)
+      const loggedById = !!workoutId && loggedWorkoutIds.has(workoutId)
+      const loggedByName = !!nameKey && loggedExerciseNames.has(nameKey)
+      let reason = 'eligible'
+      if (!nameKey && !workoutId) reason = 'missing name/id'
+      else if (loggedById) reason = 'already logged by id'
+      else if (loggedByName) reason = 'already logged by name'
+      else if (!sets.length) reason = 'no sets'
+      return {
+        day: prev.performed_date,
+        title: prev.title || '',
+        exercise: name || '(unnamed)',
+        workoutId: workoutId || '(none)',
+        sets: sets.length,
+        latest: sets.length ? fmtSet(sets[sets.length - 1]) : '',
+        reason,
+      }
+    }
+
+    function logQuickCandidateDebug(rows) {
+      if (!rows.length) return
+      console.groupCollapsed('Quick log candidates')
+      console.table(rows)
+      console.log('logged workout ids:', [...loggedWorkoutIds])
+      console.log('logged exercise names:', [...loggedExerciseNames])
+      console.groupEnd()
+    }
+
     function buildWorkoutOptions(select) {
       select.innerHTML = ''
       const ph = document.createElement('option')
@@ -333,12 +384,14 @@
       exStatus.className = 'status'
       try {
         const addedName = previousQuick.name
+        const workoutId = previousQuick.workoutId || workoutIdByName(addedName)
+        if (!workoutId) throw new Error(`"${addedName}" is not in the exercise list.`)
         const { exerciseId, sets } = await addExerciseWithSets({
           dayId,
-          workoutId: previousQuick.workoutId,
+          workoutId,
           sets: [previousQuick.set],
         })
-        makeExerciseBlock(exerciseId, addedName, sets, previousQuick.workoutId)
+        makeExerciseBlock(exerciseId, addedName, sets, workoutId)
         if (previousSessions.length) setPreviousQuickAdd(previousSessions)
         exStatus.textContent = `${addedName} added.`
       } catch (err) {
@@ -356,32 +409,20 @@
       quickAddEl.classList.add('hidden')
       quickAddEl.innerHTML = ''
 
-      let first = null
+      let candidate = null
+      const debugRows = []
       for (const prev of previousSessions) {
-        first = [...(prev.sweatsheet_workout_exercises || [])]
-          .sort((a, b) => a.id - b.id)
-          .find(ex => {
-            const workoutId = workoutIdForExerciseRow(ex)
-            const nameKey = exerciseNameKey(ex.sweatsheet_workouts?.name)
-            const alreadyLogged =
-              (workoutId && loggedWorkoutIds.has(workoutId)) ||
-              (nameKey && loggedExerciseNames.has(nameKey))
-            return workoutId && !alreadyLogged && sortedSets(ex).length
-          })
-        if (first) break
+        const exercises = [...(prev.sweatsheet_workout_exercises || [])].sort((a, b) => a.id - b.id)
+        debugRows.push(...exercises.map(ex => quickCandidateDebugRow(prev, ex)))
+        candidate = exercises.map(quickCandidateFromExercise).find(Boolean)
+        if (candidate) break
       }
-      const workoutId = first ? workoutIdForExerciseRow(first) : ''
-      if (!first || !workoutId) return
-      const sets = sortedSets(first)
-      const latestSet = sets[sets.length - 1]
-      if (!latestSet) return
+      if (!candidate) {
+        logQuickCandidateDebug(debugRows)
+        return
+      }
 
-      const name = first.sweatsheet_workouts?.name || 'Exercise'
-      previousQuick = {
-        workoutId,
-        name,
-        set: { reps: latestSet.reps, weight: latestSet.weight },
-      }
+      previousQuick = candidate
 
       const btn = document.createElement('button')
       btn.type = 'button'
@@ -390,10 +431,10 @@
       label.textContent = 'Quick log:'
       const nameEl = document.createElement('span')
       nameEl.className = 'q-name'
-      nameEl.textContent = name
+      nameEl.textContent = candidate.name
       const setEl = document.createElement('span')
       setEl.className = 'q-set'
-      setEl.textContent = fmtSet(latestSet)
+      setEl.textContent = fmtSet(candidate.displaySet)
       btn.append(label, nameEl, setEl)
       btn.addEventListener('click', addPreviousQuickExercise)
 
