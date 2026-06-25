@@ -45,14 +45,13 @@
 
     .btn { font: inherit; font-weight: 600; cursor: pointer; border: none; border-radius: 10px; padding: 11px 16px; background: #6c3fcf; color: #fff; }
     .btn:disabled { opacity: .5; cursor: default; }
-    .btn-ghost  { background: transparent; color: #6c3fcf; border: 1px solid #cdbff0; }
     .btn-sm     { padding: 9px 12px; font-size: .9rem; }
     .btn-link   { background: none; border: none; color: #6c3fcf; cursor: pointer; font: inherit; font-weight: 600; padding: 4px 2px; }
 
     .add-ex-form { border-top: 1px dashed #d8d2e6; margin-top: 16px; padding-top: 16px; }
     .add-ex-form .field { margin-bottom: 10px; }
     .quick-add { margin-bottom: 10px; }
-    .quick-add-btn { width: 100%; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; text-align: left; }
+    .quick-add-btn { width: 100%; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; text-align: left; justify-content: flex-start; }
     .quick-add-btn .q-name { font-weight: 700; }
     .quick-add-btn .q-set { opacity: .78; }
 
@@ -106,7 +105,7 @@
     <div class="panel hidden" id="session">
       <div class="session-top">
         <div class="session-summary" id="summary"></div>
-        <button type="button" class="btn-ghost btn btn-sm" id="view-logs">Done editing</button>
+        <button type="button" class="btn btn-sm" id="view-logs">Done editing</button>
       </div>
 
       <div id="exercise-list"></div>
@@ -342,16 +341,14 @@
 
       const btn = document.createElement('button')
       btn.type = 'button'
-      btn.className = 'btn btn-ghost btn-sm quick-add-btn'
-      const label = document.createElement('span')
-      label.textContent = 'Add from last time:'
+      btn.className = 'btn btn-sm quick-add-btn'
       const nameEl = document.createElement('span')
       nameEl.className = 'q-name'
       nameEl.textContent = name
       const setEl = document.createElement('span')
       setEl.className = 'q-set'
       setEl.textContent = fmtSet(firstSet)
-      btn.append(label, nameEl, setEl)
+      btn.append(nameEl, setEl)
       btn.addEventListener('click', addPreviousQuickExercise)
 
       quickAddEl.appendChild(btn)
@@ -431,7 +428,7 @@
       const weightI = row.querySelector('.weight')
 
       const addBtn = document.createElement('button')
-      addBtn.type = 'button'; addBtn.className = 'btn-ghost btn btn-sm'; addBtn.textContent = 'Save'
+      addBtn.type = 'button'; addBtn.className = 'btn btn-sm'; addBtn.textContent = 'Save'
       row.appendChild(addBtn)
 
       const submit = async () => {
