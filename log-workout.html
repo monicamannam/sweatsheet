@@ -218,6 +218,26 @@
         .sort((a, b) => (a.set_number || 0) - (b.set_number || 0))
     }
 
+    function workoutKey(id) {
+      return id === null || id === undefined || id === '' ? '' : String(id)
+    }
+
+    function workoutIdByName(name) {
+      const clean = String(name || '').trim().toLowerCase()
+      if (!clean) return ''
+      const match = workouts.find(w => String(w.name || '').trim().toLowerCase() === clean)
+      return workoutKey(match?.id)
+    }
+
+    function workoutIdForExerciseRow(ex) {
+      return workoutKey(ex.exercise_id) || workoutIdByName(ex.sweatsheet_workouts?.name)
+    }
+
+    function markWorkoutLogged(workoutId) {
+      const key = workoutKey(workoutId)
+      if (key) loggedWorkoutIds.add(key)
+    }
+
     function buildWorkoutOptions(select) {
       select.innerHTML = ''
       const ph = document.createElement('option')
@@ -327,16 +347,21 @@
 
       const first = [...(prev.sweatsheet_workout_exercises || [])]
         .sort((a, b) => a.id - b.id)
-        .find(ex => ex.exercise_id && !loggedWorkoutIds.has(String(ex.exercise_id)) && sortedSets(ex).length)
-      if (!first || !first.exercise_id) return
-      const firstSet = sortedSets(first)[0]
-      if (!firstSet) return
+        .find(ex => {
+          const workoutId = workoutIdForExerciseRow(ex)
+          return workoutId && !loggedWorkoutIds.has(workoutId) && sortedSets(ex).length
+        })
+      const workoutId = first ? workoutIdForExerciseRow(first) : ''
+      if (!first || !workoutId) return
+      const sets = sortedSets(first)
+      const latestSet = sets[sets.length - 1]
+      if (!latestSet) return
 
       const name = first.sweatsheet_workouts?.name || 'Exercise'
       previousQuick = {
-        workoutId: first.exercise_id,
+        workoutId,
         name,
-        set: { reps: firstSet.reps, weight: firstSet.weight },
+        set: { reps: latestSet.reps, weight: latestSet.weight },
       }
 
       const btn = document.createElement('button')
@@ -349,7 +374,7 @@
       nameEl.textContent = name
       const setEl = document.createElement('span')
       setEl.className = 'q-set'
-      setEl.textContent = fmtSet(firstSet)
+      setEl.textContent = fmtSet(latestSet)
       btn.append(label, nameEl, setEl)
       btn.addEventListener('click', addPreviousQuickExercise)
 
@@ -399,7 +424,7 @@
     }
 
     function makeExerciseBlock(exerciseId, name, sets = [], workoutId = null) {
-      if (workoutId) loggedWorkoutIds.add(String(workoutId))
+      markWorkoutLogged(workoutId || workoutIdByName(name))
       setCounts[exerciseId] = sets.reduce((m, s) => Math.max(m, s.set_number || 0), 0)
 
       const block = document.createElement('div')
