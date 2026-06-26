@@ -169,6 +169,7 @@
     const setCounts = {}   // exerciseId -> highest set_number so far
     const lastSets = {}    // exerciseId -> most recent saved set
     const loggedWorkoutIds = new Set()
+    const previousSetsByWorkoutId = new Map()
     let previousQuick = null
     let previousSession = null
 
@@ -283,7 +284,7 @@
     // Build a reps/weight input row. `onEnter` fires when Enter is pressed in
     // either field; pass `onRemove` to include an ✕ button (neither row here
     // uses one — sets are added or saved one at a time).
-    function buildSetRow({ onEnter, onRemove } = {}) {
+    function buildSetRow({ onEnter, onRemove, values } = {}) {
       const row = document.createElement('div')
       row.className = 'set-row'
 
@@ -300,6 +301,7 @@
       }
 
       row.append(reps, weight)
+      setRowValues(row, values)
 
       if (onRemove) {
         const x = document.createElement('button')
@@ -311,11 +313,21 @@
       return row
     }
 
+    function setInputValue(input, value) {
+      input.value = value === null || value === undefined ? '' : value
+    }
+
+    function setRowValues(row, values = {}) {
+      setInputValue(row.querySelector('.reps'), values.reps)
+      setInputValue(row.querySelector('.weight'), values.weight)
+    }
+
     // --- the "add exercise" set row (one reps/weight row) ---
-    function addNewSetRow(focus = false) {
-      const row = buildSetRow()
+    function addNewSetRow(focus = false, values = {}) {
+      const row = buildSetRow({ values })
       newSetsEl.appendChild(row)
       if (focus) row.querySelector('.reps').focus()
+      return row
     }
 
     function resetAddForm() {
@@ -333,36 +345,31 @@
       }))
     }
 
-    async function addPreviousQuickExercise() {
+    function fillAddSetForWorkout(workoutId) {
+      newSetsEl.innerHTML = ''
+      addNewSetRow(false, previousSetsByWorkoutId.get(workoutKey(workoutId)))
+    }
+
+    function fillAddFormFromQuick() {
       if (!previousQuick) return
-      const btn = quickAddEl.querySelector('button')
-      if (btn) btn.disabled = true
       exStatus.textContent = ''
       exStatus.className = 'status'
-      try {
-        const addedName = previousQuick.name
-        const { exerciseId, sets } = await addExerciseWithSets({
-          dayId,
-          workoutId: previousQuick.workoutId,
-          sets: [previousQuick.set],
-        })
-        makeExerciseBlock(exerciseId, addedName, sets, previousQuick.workoutId)
-        if (previousSession) setPreviousQuickAdd(previousSession)
-        exStatus.textContent = `${addedName} added.`
-      } catch (err) {
-        console.error(err)
-        exStatus.textContent = err && err.message ? `Couldn't add exercise — ${err.message}` : "Couldn't add exercise."
-        exStatus.className = 'status err'
-      } finally {
-        if (btn) btn.disabled = false
-      }
+      exPick.value = workoutKey(previousQuick.workoutId)
+      fillAddSetForWorkout(previousQuick.workoutId)
     }
 
     function setPreviousQuickAdd(prev) {
       previousSession = prev
       previousQuick = null
+      previousSetsByWorkoutId.clear()
       quickAddEl.classList.add('hidden')
       quickAddEl.innerHTML = ''
+
+      for (const ex of [...(prev.sweatsheet_workout_exercises || [])].sort((a, b) => a.id - b.id)) {
+        const workoutId = workoutIdForExerciseRow(ex)
+        const sets = sortedSets(ex)
+        if (workoutId && sets.length) previousSetsByWorkoutId.set(workoutKey(workoutId), sets[sets.length - 1])
+      }
 
       const candidate = [...(prev.sweatsheet_workout_exercises || [])]
         .sort((a, b) => a.id - b.id)
@@ -376,7 +383,7 @@
       btn.type = 'button'
       btn.className = 'btn btn-sm quick-add-btn'
       const label = document.createElement('span')
-      label.textContent = 'Quick log:'
+      label.textContent = 'Quick fill:'
       const nameEl = document.createElement('span')
       nameEl.className = 'q-name'
       nameEl.textContent = candidate.name
@@ -384,10 +391,11 @@
       setEl.className = 'q-set'
       setEl.textContent = fmtSet(candidate.displaySet)
       btn.append(label, nameEl, setEl)
-      btn.addEventListener('click', addPreviousQuickExercise)
+      btn.addEventListener('click', fillAddFormFromQuick)
 
       quickAddEl.appendChild(btn)
       quickAddEl.classList.remove('hidden')
+      fillAddFormFromQuick()
     }
 
     // --- exercise cards (with inline single +Set) ---
@@ -461,6 +469,7 @@
       const row = buildSetRow()
       const repsI = row.querySelector('.reps')
       const weightI = row.querySelector('.weight')
+      setRowValues(row, lastSets[exerciseId])
 
       const addBtn = document.createElement('button')
       addBtn.type = 'button'; addBtn.className = 'btn btn-sm'; addBtn.textContent = 'Save'
@@ -476,7 +485,8 @@
           lastSets[exerciseId] = set
           addSetChip(setList, set)
           ensureRepeatButton(setList, exerciseId)
-          repsI.value = ''; weightI.value = ''; repsI.focus()
+          setRowValues(row, set)
+          repsI.focus()
         } catch (err) {
           console.error(err)
           exStatus.textContent = err && err.message ? `Couldn't add set — ${err.message}` : "Couldn't add set."
@@ -505,8 +515,8 @@
         })
         const name = exPick.selectedOptions[0].textContent
         makeExerciseBlock(exerciseId, name, sets, workoutId)
-        if (previousSession) setPreviousQuickAdd(previousSession)
         resetAddForm()
+        if (previousSession) setPreviousQuickAdd(previousSession)
       } catch (err) {
         console.error(err)
         exStatus.textContent = err && err.message ? `Couldn't add exercise — ${err.message}` : "Couldn't add exercise."
@@ -567,6 +577,7 @@
       buildWorkoutOptions(exPick)
       addNewSetRow()            // seed the add-exercise grid with one row
       addExBtn.addEventListener('click', addExerciseHandler)
+      exPick.addEventListener('change', () => fillAddSetForWorkout(exPick.value))
       viewLogsBtn.addEventListener('click', () => {
         location.href = 'workout-logs.html' + (userId ? '?user=' + encodeURIComponent(userId) : '')
       })
