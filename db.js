@@ -90,7 +90,45 @@ export async function getWorkoutDays(userId) {
   return data ?? []
 }
 
-// ── Distinct session titles this person has used before ─────
+// Detailed workout feed for analytics. Pulls the last `days` days of sessions
+// with exercise categories and sets so the page can calculate local metrics.
+export async function getWorkoutAnalyticsDays(userId, days = 90) {
+  const since = new Date()
+  since.setDate(since.getDate() - Math.max(0, Number(days) - 1))
+  const sinceYmd = [
+    since.getFullYear(),
+    String(since.getMonth() + 1).padStart(2, '0'),
+    String(since.getDate()).padStart(2, '0'),
+  ].join('-')
+
+  const { data, error } = await supabase
+    .from('sweatsheet_workout_days')
+    .select(`
+      id,
+      performed_date,
+      title,
+      created_at,
+      sweatsheet_workout_exercises (
+        id,
+        exercise_id,
+        sweatsheet_workouts (
+          id,
+          name,
+          sweatsheet_categories ( id, name )
+        ),
+        sweatsheet_workout_sets ( set_number, reps, weight )
+      )
+    `)
+    .eq('user_id', userId)
+    .gte('performed_date', sinceYmd)
+    .order('performed_date', { ascending: true })
+    .order('created_at', { ascending: true })
+
+  if (error) throw error
+  return data ?? []
+}
+
+// -- Distinct session titles this person has used before --
 // Powers the "pick a past title" chips + autocomplete in the
 // new-session modal. Returns [{ title, count }] ordered by how
 // often each title is used (most-used first); recency breaks

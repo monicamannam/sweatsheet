@@ -3,30 +3,99 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>SweatSheet — Analytics</title>
+  <title>SweatSheet - Analytics</title>
   <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="styles.css" />
   <script type="module" src="components.js"></script>
+  <style>
+    .analytics-header { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    .analytics-header h2 { margin: 0; }
+    .analytics-header #user-filter { margin-left: auto; }
+
+    .panel-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 16px;
+    }
+    .panel-grid .panel { margin-bottom: 0; }
+    .panel-wide { grid-column: 1 / -1; }
+
+    .panel-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 14px;
+    }
+    .panel-head h3 { margin-bottom: 0; }
+    .panel-head select { width: 100%; }
+
+    .metric-note {
+      font-size: 12px;
+      color: var(--accent);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .attention-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .attention-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 10px 0;
+      border-bottom: 1px solid #edf1f7;
+    }
+    .attention-row:last-child { border-bottom: none; }
+    .attention-name { font-weight: 600; color: var(--ink); }
+    .attention-ago {
+      flex: none;
+      color: var(--primary);
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+    }
+    .analytics-empty {
+      min-height: 180px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      color: var(--accent);
+      padding: 24px;
+    }
+
+    @media (min-width: 768px) {
+      .panel-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .panel-head select { width: auto; min-width: 220px; }
+    }
+  </style>
 </head>
 <body>
 
   <site-header></site-header>
 
   <main class="page">
-    <div class="page-header">
+    <div class="page-header analytics-header">
       <h2>Analytics</h2>
+      <select id="user-filter">
+        <option value="">Select a person...</option>
+      </select>
     </div>
 
     <div class="stats-grid" id="stats">
-      <div class="stat"><div class="num">—</div><div class="lbl">Exercises</div></div>
-      <div class="stat"><div class="num">—</div><div class="lbl">Categories</div></div>
-      <div class="stat"><div class="num">—</div><div class="lbl">Avg / category</div></div>
+      <div class="stat"><div class="num">-</div><div class="lbl">Last 7 days</div></div>
+      <div class="stat"><div class="num">-</div><div class="lbl">Last 30 days</div></div>
+      <div class="stat"><div class="num">-</div><div class="lbl">Last 90 days</div></div>
     </div>
 
-    <div class="panel">
-      <h3>Exercises per category</h3>
-      <div class="chart-box">
-        <canvas id="category-chart"></canvas>
+    <div id="analytics-content">
+      <div class="panel">
+        <div class="analytics-empty">Select a person to see workout analytics.</div>
       </div>
     </div>
   </main>
@@ -35,76 +104,482 @@
 
   <script type="module">
     import Chart from 'https://cdn.jsdelivr.net/npm/chart.js@4.4.6/auto/+esm'
-    import { getCategories, getExercises } from './db.js'
+    import { getCategories, getUsers, getWorkoutAnalyticsDays } from './db.js'
 
-    const PURPLE = '#6c3fcf'
-    const INK    = '#1a1a2e'
+    const INK = '#1a1a2e'
     const ACCENT = '#8b6bbf'
+    const GRID = '#eef2f8'
+    const PALETTE = ['#6c3fcf', '#2f6fed', '#16a34a', '#f97316', '#e5484d', '#0f766e', '#a855f7', '#eab308', '#64748b', '#db2777']
+    const MS_DAY = 24 * 60 * 60 * 1000
     const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
-    function setStat(index, value) {
-      document.querySelectorAll('#stats .stat .num')[index].textContent = value
+    const userFilter = document.getElementById('user-filter')
+    const content = document.getElementById('analytics-content')
+    const statNums = [...document.querySelectorAll('#stats .stat .num')]
+
+    let charts = []
+    let catalogCategories = []
+    let progressIndex = new Map()
+    let progressChart = null
+
+    function escapeHtml(str) {
+      return String(str).replace(/[&<>"']/g, c => (
+        { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+      ))
     }
 
-    async function init() {
-      let categories, exercises
-      try {
-        ;[categories, exercises] = await Promise.all([getCategories(), getExercises()])
-      } catch (err) {
-        console.error(err)
-        document.querySelector('.chart-box').innerHTML =
-          '<p style="color:var(--accent);text-align:center;padding:40px 0;">Couldn\'t load data.</p>'
-        return
+    function todayPacific() {
+      return new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'America/Los_Angeles', year: 'numeric', month: '2-digit', day: '2-digit'
+      }).format(new Date())
+    }
+
+    function parseYmd(ymd) {
+      const [y, m, d] = String(ymd || '').split('-').map(Number)
+      return new Date(y, m - 1, d)
+    }
+
+    function ymdLocal(date) {
+      const y = date.getFullYear()
+      const m = String(date.getMonth() + 1).padStart(2, '0')
+      const d = String(date.getDate()).padStart(2, '0')
+      return `${y}-${m}-${d}`
+    }
+
+    function fmtShortDate(ymd) {
+      if (!ymd) return ''
+      return parseYmd(ymd).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+    }
+
+    function startOfWeek(date) {
+      const d = new Date(date)
+      d.setDate(d.getDate() - d.getDay())
+      d.setHours(0, 0, 0, 0)
+      return d
+    }
+
+    function daysAgo(ymd, today) {
+      if (!ymd) return Infinity
+      return Math.floor((today - parseYmd(ymd)) / MS_DAY)
+    }
+
+    function setStats(values = ['-', '-', '-']) {
+      values.forEach((value, i) => { statNums[i].textContent = value })
+    }
+
+    function resetCharts() {
+      charts.forEach(chart => chart.destroy())
+      charts = []
+      progressChart = null
+    }
+
+    function chartOptions(extra = {}) {
+      const { plugins = {}, scales = {}, ...rest } = extra
+      return {
+        ...rest,
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: reduceMotion ? false : { duration: 600 },
+        plugins: {
+          legend: { labels: { color: INK, font: { family: 'DM Sans' } } },
+          tooltip: { mode: 'index', intersect: false },
+          ...plugins,
+        },
+        scales: {
+          x: { grid: { display: false }, ticks: { color: INK, font: { family: 'DM Sans' } } },
+          y: {
+            beginAtZero: true,
+            ticks: { precision: 0, color: ACCENT, font: { family: 'DM Sans' } },
+            grid: { color: GRID },
+          },
+          ...scales,
+        },
+      }
+    }
+
+    function dayExercises(days) {
+      return days.flatMap(day =>
+        [...(day.sweatsheet_workout_exercises || [])].map(row => ({ day, row }))
+      )
+    }
+
+    function exerciseName(row) {
+      return row.sweatsheet_workouts?.name || 'Unknown exercise'
+    }
+
+    function exerciseId(row) {
+      return row.exercise_id || row.sweatsheet_workouts?.id || exerciseName(row)
+    }
+
+    function categoryName(row) {
+      return row.sweatsheet_workouts?.sweatsheet_categories?.name || 'Uncategorized'
+    }
+
+    function sortedSets(row) {
+      return [...(row.sweatsheet_workout_sets || [])].sort((a, b) => (a.set_number || 0) - (b.set_number || 0))
+    }
+
+    function countRecent(days, windowDays, today) {
+      return days.filter(day => {
+        const ago = daysAgo(day.performed_date, today)
+        return ago >= 0 && ago < windowDays
+      }).length
+    }
+
+    function buildWeekBuckets(today, count = 6) {
+      const currentStart = startOfWeek(today)
+      const weeks = []
+      for (let i = count - 1; i >= 0; i--) {
+        const start = new Date(currentStart)
+        start.setDate(start.getDate() - i * 7)
+        const end = new Date(start)
+        end.setDate(end.getDate() + 6)
+        weeks.push({
+          key: ymdLocal(start),
+          label: `${start.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`,
+          start,
+          end,
+          counts: new Map(),
+        })
+      }
+      return weeks
+    }
+
+    function renderShell() {
+      content.innerHTML = `
+        <div class="panel-grid">
+          <div class="panel panel-wide">
+            <div class="panel-head">
+              <h3>Sets per category by week</h3>
+              <span class="metric-note">Last 6 weeks</span>
+            </div>
+            <div class="chart-box"><canvas id="category-sets-chart"></canvas></div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-head">
+              <h3>Exercise frequency</h3>
+              <span class="metric-note">Last 90 days</span>
+            </div>
+            <div class="chart-box"><canvas id="exercise-frequency-chart"></canvas></div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-head">
+              <h3>Needs attention</h3>
+              <span class="metric-note">14+ days</span>
+            </div>
+            <div id="attention-list" class="attention-list"></div>
+          </div>
+
+          <div class="panel panel-wide">
+            <div class="panel-head">
+              <h3>Exercise progress</h3>
+              <select id="progress-exercise"></select>
+            </div>
+            <div class="chart-box"><canvas id="progress-chart"></canvas></div>
+          </div>
+        </div>`
+    }
+
+    function renderCategorySets(days, today) {
+      const weeks = buildWeekBuckets(today)
+      const categorySet = new Set(catalogCategories.map(c => c.name))
+
+      for (const { day, row } of dayExercises(days)) {
+        const date = parseYmd(day.performed_date)
+        const week = weeks.find(w => date >= w.start && date <= w.end)
+        if (!week) continue
+        const cat = categoryName(row)
+        categorySet.add(cat)
+        week.counts.set(cat, (week.counts.get(cat) || 0) + sortedSets(row).length)
       }
 
-      // Count exercises per category name.
-      const counts = {}
-      for (const cat of categories) counts[cat.name] = 0
-      for (const ex of exercises) {
-        const name = ex.sweatsheet_categories?.name
-        if (name) counts[name] = (counts[name] || 0) + 1
+      const activeCategories = [...categorySet]
+        .filter(cat => weeks.some(w => (w.counts.get(cat) || 0) > 0))
+        .sort((a, b) => a.localeCompare(b))
+
+      const categories = activeCategories.length ? activeCategories : ['No sets yet']
+      const chart = new Chart(document.getElementById('category-sets-chart'), {
+        type: 'bar',
+        data: {
+          labels: weeks.map(w => w.label),
+          datasets: categories.map((cat, i) => ({
+            label: cat,
+            data: weeks.map(w => w.counts.get(cat) || 0),
+            backgroundColor: PALETTE[i % PALETTE.length],
+            borderRadius: 4,
+            stack: 'sets',
+          })),
+        },
+        options: chartOptions({
+          scales: {
+            x: { stacked: true, grid: { display: false }, ticks: { color: INK, font: { family: 'DM Sans' } } },
+            y: {
+              stacked: true,
+              beginAtZero: true,
+              ticks: { precision: 0, color: ACCENT, font: { family: 'DM Sans' } },
+              grid: { color: GRID },
+            },
+          },
+        }),
+      })
+      charts.push(chart)
+    }
+
+    function renderExerciseFrequency(days) {
+      const counts = new Map()
+      for (const { row } of dayExercises(days)) {
+        const name = exerciseName(row)
+        counts.set(name, (counts.get(name) || 0) + 1)
       }
 
-      const labels = Object.keys(counts)
-      const values = labels.map(l => counts[l])
+      const items = [...counts.entries()]
+        .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+        .slice(0, 10)
 
-      // Summary stats.
-      setStat(0, exercises.length)
-      setStat(1, categories.length)
-      setStat(2, categories.length ? (exercises.length / categories.length).toFixed(1) : '0')
+      const labels = items.length ? items.map(([name]) => name) : ['No exercises yet']
+      const values = items.length ? items.map(([, count]) => count) : [0]
 
-      if (!labels.length) {
-        document.querySelector('.chart-box').innerHTML =
-          '<p style="color:var(--accent);text-align:center;padding:40px 0;">No categories yet.</p>'
-        return
-      }
-
-      new Chart(document.getElementById('category-chart'), {
+      const chart = new Chart(document.getElementById('exercise-frequency-chart'), {
         type: 'bar',
         data: {
           labels,
           datasets: [{
             data: values,
-            backgroundColor: PURPLE,
+            backgroundColor: '#6c3fcf',
             borderRadius: 6,
-            maxBarThickness: 48,
-          }]
+            maxBarThickness: 34,
+          }],
         },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          animation: reduceMotion ? false : { duration: 600 },
+        options: chartOptions({
+          indexAxis: 'y',
           plugins: { legend: { display: false } },
+        }),
+      })
+      charts.push(chart)
+    }
+
+    function buildProgressIndex(days) {
+      const byExercise = new Map()
+      for (const { day, row } of dayExercises(days)) {
+        const id = exerciseId(row)
+        const name = exerciseName(row)
+        if (!byExercise.has(id)) byExercise.set(id, { id, name, byDate: new Map(), count: 0 })
+        const entry = byExercise.get(id)
+        entry.count++
+
+        const sets = sortedSets(row)
+        const weights = sets.map(s => Number(s.weight)).filter(Number.isFinite)
+        const reps = sets.map(s => Number(s.reps)).filter(Number.isFinite)
+        const bestWeight = weights.length ? Math.max(...weights) : null
+        const bestReps = reps.length ? Math.max(...reps) : null
+
+        const existing = entry.byDate.get(day.performed_date) || { date: day.performed_date, bestWeight: null, bestReps: null }
+        if (bestWeight !== null) existing.bestWeight = existing.bestWeight === null ? bestWeight : Math.max(existing.bestWeight, bestWeight)
+        if (bestReps !== null) existing.bestReps = existing.bestReps === null ? bestReps : Math.max(existing.bestReps, bestReps)
+        entry.byDate.set(day.performed_date, existing)
+      }
+
+      return new Map([...byExercise.values()]
+        .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
+        .map(item => [String(item.id), item]))
+    }
+
+    function renderProgressPicker(days) {
+      progressIndex = buildProgressIndex(days)
+      const select = document.getElementById('progress-exercise')
+
+      if (!progressIndex.size) {
+        select.innerHTML = '<option value="">No exercises yet</option>'
+        drawProgressChart(null)
+        return
+      }
+
+      select.innerHTML = [...progressIndex.values()]
+        .map(item => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.name)}</option>`)
+        .join('')
+
+      select.addEventListener('change', () => drawProgressChart(select.value))
+      drawProgressChart(select.value)
+    }
+
+    function drawProgressChart(id) {
+      if (progressChart) {
+        charts = charts.filter(chart => chart !== progressChart)
+        progressChart.destroy()
+      }
+      const canvas = document.getElementById('progress-chart')
+      const item = id ? progressIndex.get(String(id)) : null
+      const points = item ? [...item.byDate.values()].sort((a, b) => a.date.localeCompare(b.date)) : []
+
+      progressChart = new Chart(canvas, {
+        type: 'line',
+        data: {
+          labels: points.length ? points.map(p => fmtShortDate(p.date)) : ['No data'],
+          datasets: [
+            {
+              label: 'Best weight',
+              data: points.length ? points.map(p => p.bestWeight) : [null],
+              borderColor: '#6c3fcf',
+              backgroundColor: '#6c3fcf',
+              tension: 0.25,
+              spanGaps: true,
+              yAxisID: 'weight',
+            },
+            {
+              label: 'Best reps',
+              data: points.length ? points.map(p => p.bestReps) : [null],
+              borderColor: '#16a34a',
+              backgroundColor: '#16a34a',
+              tension: 0.25,
+              spanGaps: true,
+              yAxisID: 'reps',
+            },
+          ],
+        },
+        options: chartOptions({
           scales: {
-            x: { grid: { display: false }, ticks: { color: INK, font: { family: 'DM Sans' } } },
-            y: {
+            y: { display: false },
+            weight: {
+              type: 'linear',
+              position: 'left',
               beginAtZero: true,
               ticks: { precision: 0, color: ACCENT, font: { family: 'DM Sans' } },
-              grid: { color: '#eef2f8' }
-            }
-          }
+              grid: { color: GRID },
+            },
+            reps: {
+              type: 'linear',
+              position: 'right',
+              beginAtZero: true,
+              ticks: { precision: 0, color: ACCENT, font: { family: 'DM Sans' } },
+              grid: { drawOnChartArea: false },
+            },
+          },
+        }),
+      })
+      charts.push(progressChart)
+    }
+
+    function renderAttention(days, today) {
+      const byCategory = new Map(catalogCategories.map(c => [c.name, null]))
+      for (const { day, row } of dayExercises(days)) {
+        const cat = categoryName(row)
+        const current = byCategory.get(cat)
+        if (!current || day.performed_date > current) byCategory.set(cat, day.performed_date)
+      }
+
+      const rows = [...byCategory.entries()]
+        .map(([name, lastDate]) => ({ name, lastDate, ago: daysAgo(lastDate, today) }))
+        .sort((a, b) => {
+          const aAgo = a.ago === Infinity ? 99999 : a.ago
+          const bAgo = b.ago === Infinity ? 99999 : b.ago
+          return bAgo - aAgo || a.name.localeCompare(b.name)
+        })
+
+      const stale = rows.filter(row => row.ago >= 14).slice(0, 8)
+      const target = stale.length ? stale : rows.slice(0, 5)
+      const list = document.getElementById('attention-list')
+
+      if (!target.length) {
+        list.innerHTML = '<div class="analytics-empty">No categories yet.</div>'
+        return
+      }
+
+      if (!stale.length) {
+        list.innerHTML = '<div class="analytics-empty">Everything has been trained in the last 14 days.</div>'
+        return
+      }
+
+      list.innerHTML = target.map(row => {
+        const ago = row.ago === Infinity ? 'Never' : `${row.ago}d ago`
+        const last = row.lastDate ? fmtShortDate(row.lastDate) : 'No logs'
+        return `
+          <div class="attention-row">
+            <div>
+              <div class="attention-name">${escapeHtml(row.name)}</div>
+              <div class="metric-note">${escapeHtml(last)}</div>
+            </div>
+            <div class="attention-ago">${escapeHtml(ago)}</div>
+          </div>`
+      }).join('')
+    }
+
+    function getUserParam() {
+      return new URLSearchParams(window.location.search).get('user') || ''
+    }
+
+    function setUserParam(userId) {
+      const url = new URL(window.location.href)
+      if (userId) url.searchParams.set('user', userId)
+      else url.searchParams.delete('user')
+      history.replaceState(null, '', url)
+    }
+
+    async function loadAnalytics(userId) {
+      resetCharts()
+      content.innerHTML = '<div class="panel"><div class="analytics-empty"><div><div class="spinner"></div>Loading analytics...</div></div></div>'
+
+      try {
+        const days = await getWorkoutAnalyticsDays(userId, 90)
+        const today = parseYmd(todayPacific())
+
+        setStats([
+          countRecent(days, 7, today),
+          countRecent(days, 30, today),
+          countRecent(days, 90, today),
+        ])
+
+        renderShell()
+        renderCategorySets(days, today)
+        renderExerciseFrequency(days)
+        renderAttention(days, today)
+        renderProgressPicker(days)
+      } catch (err) {
+        console.error(err)
+        setStats()
+        content.innerHTML = '<div class="panel"><div class="analytics-empty">Could not load analytics. Check your connection and try again.</div></div>'
+      }
+    }
+
+    async function init() {
+      try {
+        const [users, categories] = await Promise.all([
+          getUsers(),
+          getCategories(),
+        ])
+        catalogCategories = categories
+
+        for (const u of users) {
+          const opt = document.createElement('option')
+          opt.value = u.id
+          opt.textContent = u.name
+          userFilter.appendChild(opt)
+        }
+      } catch (err) {
+        console.error(err)
+        content.innerHTML = '<div class="panel"><div class="analytics-empty">Could not load people. Check your connection and try again.</div></div>'
+        return
+      }
+
+      userFilter.addEventListener('change', () => {
+        setUserParam(userFilter.value)
+        if (userFilter.value) {
+          loadAnalytics(userFilter.value)
+        } else {
+          resetCharts()
+          setStats()
+          content.innerHTML = '<div class="panel"><div class="analytics-empty">Select a person to see workout analytics.</div></div>'
         }
       })
+
+      const fromUrl = getUserParam()
+      if (fromUrl && [...userFilter.options].some(o => o.value === fromUrl)) {
+        userFilter.value = fromUrl
+        loadAnalytics(fromUrl)
+      } else if (fromUrl) {
+        setUserParam('')
+      }
     }
 
     init()
