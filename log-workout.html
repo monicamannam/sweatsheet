@@ -142,6 +142,25 @@
 
   <site-nav active="log-workout"></site-nav>
 
+  <script>
+    (() => {
+      const dayId = new URLSearchParams(location.search).get('day') || ''
+      if (!dayId) return
+      try {
+        const cached = JSON.parse(localStorage.getItem('sweatsheet:log-workout:html:v1:' + dayId) || 'null')
+        if (!cached || cached.version !== 1 || !cached.sessionHtml) return
+        const session = document.getElementById('session')
+        session.innerHTML = cached.sessionHtml
+        session.classList.remove('hidden')
+        if (cached.previousHtml) {
+          const previous = document.getElementById('previous')
+          previous.innerHTML = cached.previousHtml
+          previous.classList.remove('hidden')
+        }
+      } catch {}
+    })()
+  </script>
+
   <script type="module">
     import { getUsers, getWorkouts, addExerciseWithSets, addSet, getWorkoutDay, getPreviousDayByTitle } from './db.js'
 
@@ -172,6 +191,60 @@
     const previousSetsByWorkoutId = new Map()
     let previousQuick = null
     let previousSession = null
+    let currentDay = null
+    let sessionHandlersBound = false
+    const SESSION_DATA_CACHE = 'sweatsheet:log-workout:data:v1:'
+    const SESSION_HTML_CACHE = 'sweatsheet:log-workout:html:v1:'
+    const LOGS_DIRTY = 'sweatsheet:workout-logs:dirty:'
+
+    function navigationType() {
+      const entry = performance.getEntriesByType?.('navigation')?.[0]
+      if (entry?.type) return entry.type
+      return performance.navigation?.type === 1 ? 'reload' : 'navigate'
+    }
+
+    function isExplicitReload() {
+      return !document.wasDiscarded && navigationType() === 'reload'
+    }
+
+    function readCache(key) {
+      try { return JSON.parse(localStorage.getItem(key) || 'null') } catch { return null }
+    }
+
+    function writeCache(key, value) {
+      try { localStorage.setItem(key, JSON.stringify(value)) } catch {}
+    }
+
+    function markLogsDirty(uid) {
+      if (uid) writeCache(LOGS_DIRTY + uid, Date.now())
+    }
+
+    function saveSessionCache() {
+      if (!dayId || !currentDay) return
+      writeCache(SESSION_DATA_CACHE + dayId, {
+        version: 1,
+        savedAt: Date.now(),
+        day: currentDay,
+        workouts,
+        usersById,
+        previous: previousSession,
+      })
+      writeCache(SESSION_HTML_CACHE + dayId, {
+        version: 1,
+        savedAt: Date.now(),
+        sessionHtml: sessionEl.innerHTML,
+        previousHtml: previousEl.classList.contains('hidden') ? '' : previousEl.innerHTML,
+      })
+    }
+
+    function restoreCachedSession(id) {
+      const cached = readCache(SESSION_DATA_CACHE + id)
+      if (!cached || cached.version !== 1 || !cached.day || String(cached.day.id) !== String(id)) return false
+      workouts = cached.workouts || []
+      usersById = cached.usersById || {}
+      renderSession(cached.day, { previous: cached.previous || null, loadPreviousSession: false })
+      return true
+    }
 
     // --- helpers ---
     function escapeHtml(str) {
@@ -241,6 +314,59 @@
     function markWorkoutLogged(workoutId) {
       const key = workoutKey(workoutId)
       if (key) loggedWorkoutIds.add(key)
+    }
+
+    function appendCachedSet(exerciseId, set) {
+      const ex = currentDay?.sweatsheet_workout_exercises?.find(row => String(row.id) === String(exerciseId))
+      if (!ex) return
+      ex.sweatsheet_workout_sets = [...(ex.sweatsheet_workout_sets || []), set]
+      saveSessionCache()
+      markLogsDirty(userId)
+    }
+
+    function appendCachedExercise(exerciseId, workoutId, name, sets) {
+      if (!currentDay) return
+      if (!Array.isArray(currentDay.sweatsheet_workout_exercises)) {
+        currentDay.sweatsheet_workout_exercises = []
+      }
+      currentDay.sweatsheet_workout_exercises.push({
+        id: exerciseId,
+        exercise_id: workoutId,
+        sweatsheet_workouts: { name },
+        sweatsheet_workout_sets: sets,
+      })
+      saveSessionCache()
+      markLogsDirty(userId)
+    }
+
+    function resetSessionState() {
+      listEl.innerHTML = ''
+      newSetsEl.innerHTML = ''
+      exStatus.textContent = ''
+      exStatus.className = 'status'
+      for (const key of Object.keys(setCounts)) delete setCounts[key]
+      for (const key of Object.keys(lastSets)) delete lastSets[key]
+      loggedWorkoutIds.clear()
+      previousSetsByWorkoutId.clear()
+      previousQuick = null
+      previousSession = null
+      quickAddEl.classList.add('hidden')
+      quickAddEl.innerHTML = ''
+      previousEl.classList.add('hidden')
+      prevDateEl.textContent = ''
+      prevTitleEl.textContent = ''
+      prevAgoEl.textContent = ''
+      prevExEl.innerHTML = ''
+    }
+
+    function bindSessionHandlers() {
+      if (sessionHandlersBound) return
+      addExBtn.addEventListener('click', addExerciseHandler)
+      exPick.addEventListener('change', () => fillAddSetForWorkout(exPick.value))
+      viewLogsBtn.addEventListener('click', () => {
+        location.href = 'workout-logs.html' + (userId ? '?user=' + encodeURIComponent(userId) : '')
+      })
+      sessionHandlersBound = true
     }
 
     function quickCandidateFromExercise(ex) {
@@ -428,6 +554,7 @@
           setCounts[exerciseId] = next
           lastSets[exerciseId] = set
           addSetChip(setListEl, set)
+          appendCachedSet(exerciseId, set)
         } catch (err) {
           console.error(err)
           exStatus.textContent = err && err.message ? `Couldn't repeat set — ${err.message}` : "Couldn't repeat set."
@@ -486,6 +613,7 @@
           addSetChip(setList, set)
           ensureRepeatButton(setList, exerciseId)
           setRowValues(row, set)
+          appendCachedSet(exerciseId, set)
           repsI.focus()
         } catch (err) {
           console.error(err)
@@ -517,6 +645,7 @@
         makeExerciseBlock(exerciseId, name, sets, workoutId)
         resetAddForm()
         if (previousSession) setPreviousQuickAdd(previousSession)
+        appendCachedExercise(exerciseId, workoutId, name, sets)
       } catch (err) {
         console.error(err)
         exStatus.textContent = err && err.message ? `Couldn't add exercise — ${err.message}` : "Couldn't add exercise."
@@ -530,15 +659,7 @@
     // rendered exactly like a day card on the Workout Logs page.
     // Best-effort: any failure just leaves the panel hidden, so the
     // core logging flow is never blocked by it.
-    async function loadPrevious(title, excludeDayId, uid) {
-      if (!title) return
-      let prev
-      try {
-        prev = await getPreviousDayByTitle({ userId: uid, title, excludeDayId })
-      } catch (err) {
-        console.error("Couldn't load previous session", err)
-        return
-      }
+    function renderPrevious(prev, fallbackTitle) {
       if (!prev) return
 
       setPreviousQuickAdd(prev)
@@ -556,19 +677,33 @@
       }).join('')
 
       prevDateEl.textContent  = fmtDate(prev.performed_date)
-      prevTitleEl.textContent = prev.title || title
+      prevTitleEl.textContent = prev.title || fallbackTitle
       prevAgoEl.textContent   = agoLabel(prev.performed_date)
       prevExEl.innerHTML      = body
       previousEl.classList.remove('hidden')
+      saveSessionCache()
     }
 
-    async function restoreSession(id) {
-      const day = await getWorkoutDay(id)
-      dayId  = day.id
-      userId = day.user_id
-      showSummary(usersById[userId] || 'Unknown', day.performed_date, day.title)
+    async function loadPrevious(title, excludeDayId, uid) {
+      if (!title) return
+      let prev
+      try {
+        prev = await getPreviousDayByTitle({ userId: uid, title, excludeDayId })
+      } catch (err) {
+        console.error("Couldn't load previous session", err)
+        return
+      }
+      renderPrevious(prev, title)
+    }
 
-      const exercises = [...(day.sweatsheet_workout_exercises || [])].sort((a, b) => a.id - b.id)
+    function renderSession(day, { previous = null, loadPreviousSession = true } = {}) {
+      resetSessionState()
+      currentDay = JSON.parse(JSON.stringify(day))
+      dayId  = currentDay.id
+      userId = currentDay.user_id
+      showSummary(usersById[userId] || 'Unknown', currentDay.performed_date, currentDay.title)
+
+      const exercises = [...(currentDay.sweatsheet_workout_exercises || [])].sort((a, b) => a.id - b.id)
       for (const ex of exercises) {
         const name = ex.sweatsheet_workouts?.name || '—'
         makeExerciseBlock(ex.id, name, ex.sweatsheet_workout_sets || [], ex.exercise_id)
@@ -576,22 +711,28 @@
 
       buildWorkoutOptions(exPick)
       addNewSetRow()            // seed the add-exercise grid with one row
-      addExBtn.addEventListener('click', addExerciseHandler)
-      exPick.addEventListener('change', () => fillAddSetForWorkout(exPick.value))
-      viewLogsBtn.addEventListener('click', () => {
-        location.href = 'workout-logs.html' + (userId ? '?user=' + encodeURIComponent(userId) : '')
-      })
+      bindSessionHandlers()
 
       sessionEl.classList.remove('hidden')
+      if (previous) renderPrevious(previous, currentDay.title)
+      saveSessionCache()
 
       // Show the most recent prior session with this same title underneath.
       // Fire-and-forget so it never holds up (or breaks) the editor.
-      loadPrevious(day.title, day.id, userId)
+      if (loadPreviousSession) loadPrevious(currentDay.title, currentDay.id, userId)
+    }
+
+    async function restoreSession(id) {
+      const day = await getWorkoutDay(id)
+      renderSession(day)
     }
 
     async function init() {
       const dayParam = new URLSearchParams(location.search).get('day')
       if (!dayParam) { noSessionEl.classList.remove('hidden'); return }
+
+      const hadCache = restoreCachedSession(dayParam)
+      if (hadCache && !isExplicitReload()) return
 
       try {
         const [users, cat] = await Promise.all([getUsers(), getWorkouts()])
@@ -600,11 +741,13 @@
         await restoreSession(dayParam)
       } catch (err) {
         console.error(err)
-        noSessionEl.querySelector('.center-state').innerHTML =
-          `Couldn't load this session.<br>` +
-          `<small style="opacity:.7">${escapeHtml(err && err.message ? err.message : String(err))}</small><br>` +
-          `<a href="workout-logs.html">Back to Workout Logs</a>`
-        noSessionEl.classList.remove('hidden')
+        if (!hadCache) {
+          noSessionEl.querySelector('.center-state').innerHTML =
+            `Couldn't load this session.<br>` +
+            `<small style="opacity:.7">${escapeHtml(err && err.message ? err.message : String(err))}</small><br>` +
+            `<a href="workout-logs.html">Back to Workout Logs</a>`
+          noSessionEl.classList.remove('hidden')
+        }
       }
     }
 

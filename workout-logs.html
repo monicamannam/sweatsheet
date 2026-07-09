@@ -111,6 +111,19 @@
 
   <site-nav active="workout-logs"></site-nav>
 
+  <script>
+    (() => {
+      const userId = new URLSearchParams(location.search).get('user') || ''
+      if (!userId) return
+      try {
+        const cached = JSON.parse(localStorage.getItem('sweatsheet:workout-logs:html:v1:' + userId) || 'null')
+        if (!cached || cached.version !== 1) return
+        document.getElementById('calendar').innerHTML = cached.calendarHtml || ''
+        document.getElementById('days').innerHTML = cached.daysHtml || ''
+      } catch {}
+    })()
+  </script>
+
   <!-- New workout session modal -->
   <div class="modal-backdrop hidden" id="ns-modal">
     <div class="modal">
@@ -153,6 +166,69 @@
     // Held here so createSession() can snap a typed title onto an
     // existing one (case-insensitive), keeping naming consistent.
     let pastTitles = []
+    const LOGS_DATA_CACHE = 'sweatsheet:workout-logs:data:v1:'
+    const LOGS_HTML_CACHE = 'sweatsheet:workout-logs:html:v1:'
+    const LOGS_DIRTY = 'sweatsheet:workout-logs:dirty:'
+
+    function navigationType() {
+      const entry = performance.getEntriesByType?.('navigation')?.[0]
+      if (entry?.type) return entry.type
+      return performance.navigation?.type === 1 ? 'reload' : 'navigate'
+    }
+
+    function isExplicitReload() {
+      return !document.wasDiscarded && navigationType() === 'reload'
+    }
+
+    function readCache(key) {
+      try { return JSON.parse(localStorage.getItem(key) || 'null') } catch { return null }
+    }
+
+    function writeCache(key, value) {
+      try { localStorage.setItem(key, JSON.stringify(value)) } catch {}
+    }
+
+    function removeCache(key) {
+      try { localStorage.removeItem(key) } catch {}
+    }
+
+    function logsDirtyKey(userId) {
+      return LOGS_DIRTY + userId
+    }
+
+    function logsAreDirty(userId) {
+      return !!readCache(logsDirtyKey(userId))
+    }
+
+    function markLogsDirty(userId) {
+      if (userId) writeCache(logsDirtyKey(userId), Date.now())
+    }
+
+    function restoreCachedDays(userId) {
+      const cached = readCache(LOGS_DATA_CACHE + userId)
+      if (!cached || cached.version !== 1) return false
+      if (!Array.isArray(cached.calendarDays) || !Array.isArray(cached.logDays)) return false
+      renderCalendar(cached.calendarDays)
+      renderDays(cached.logDays)
+      return true
+    }
+
+    function writeDaysCache(userId, calendarDays, logDays) {
+      if (!userId) return
+      writeCache(LOGS_DATA_CACHE + userId, {
+        version: 1,
+        savedAt: Date.now(),
+        calendarDays,
+        logDays,
+      })
+      writeCache(LOGS_HTML_CACHE + userId, {
+        version: 1,
+        savedAt: Date.now(),
+        calendarHtml: calendarEl.innerHTML,
+        daysHtml: container.innerHTML,
+      })
+      removeCache(logsDirtyKey(userId))
+    }
 
     function escapeHtml(str) {
       return String(str).replace(/[&<>"']/g, c => (
@@ -365,9 +441,11 @@
       newSessionBtn.title = userFilter.value ? '' : 'Pick a person first'
     }
 
-    async function loadDays(userId) {
-      calendarEl.innerHTML = ''
-      container.innerHTML = `<div class="center-state"><div class="spinner"></div>Loading workouts…</div>`
+    async function loadDays(userId, { showLoading = true } = {}) {
+      if (showLoading) {
+        calendarEl.innerHTML = ''
+        container.innerHTML = `<div class="center-state"><div class="spinner"></div>Loading workouts…</div>`
+      }
       try {
         const [calendarDays, logDays] = await Promise.all([
           getWorkoutCalendarDays(userId),
@@ -375,10 +453,13 @@
         ])
         renderCalendar(calendarDays)
         renderDays(logDays)
+        writeDaysCache(userId, calendarDays, logDays)
       } catch (err) {
         console.error(err)
-        calendarEl.innerHTML = ''
-        container.innerHTML = `<div class="center-state">Couldn't load workouts. Check your connection and try again.</div>`
+        if (showLoading) {
+          calendarEl.innerHTML = ''
+          container.innerHTML = `<div class="center-state">Couldn't load workouts. Check your connection and try again.</div>`
+        }
       }
     }
 
@@ -450,6 +531,7 @@
           performedDate: nsDate.value,
           title,
         })
+        markLogsDirty(userFilter.value)
         // Hand off to the log page for this brand-new session.
         location.href = 'log-workout.html?day=' + encodeURIComponent(dayId)
       } catch (err) {
@@ -460,6 +542,9 @@
     }
 
     async function init() {
+      const fromUrl = getUserParam()
+      const hadCache = fromUrl ? restoreCachedDays(fromUrl) : false
+
       try {
         const users = await getUsers()
         for (const u of users) {
@@ -470,7 +555,9 @@
         }
       } catch (err) {
         console.error(err)
-        container.innerHTML = `<div class="center-state">Couldn't load people. Check your connection and try again.</div>`
+        if (!hadCache) {
+          container.innerHTML = `<div class="center-state">Couldn't load people. Check your connection and try again.</div>`
+        }
         return
       }
 
@@ -478,7 +565,8 @@
         setUserParam(userFilter.value)
         syncNewSessionBtn()
         if (userFilter.value) {
-          loadDays(userFilter.value)
+          const restored = restoreCachedDays(userFilter.value)
+          loadDays(userFilter.value, { showLoading: !restored })
         } else {
           calendarEl.innerHTML = ''
           container.innerHTML = `<div class="center-state">Select a person to see their workouts.</div>`
@@ -510,10 +598,11 @@
       modal.addEventListener('click', e => { if (e.target === modal) closeModal() })
 
       // Restore the selection from the URL (e.g. after a refresh or a shared link).
-      const fromUrl = getUserParam()
       if (fromUrl && [...userFilter.options].some(o => o.value === fromUrl)) {
         userFilter.value = fromUrl
-        loadDays(fromUrl)
+        if (!hadCache || isExplicitReload() || logsAreDirty(fromUrl)) {
+          loadDays(fromUrl, { showLoading: !hadCache })
+        }
       } else if (fromUrl) {
         setUserParam('')   // stale id — drop it
       }
