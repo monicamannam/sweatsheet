@@ -142,23 +142,12 @@
 
   <site-nav active="log-workout"></site-nav>
 
+  <script src="page-cache.js"></script>
   <script>
-    (() => {
-      const dayId = new URLSearchParams(location.search).get('day') || ''
-      if (!dayId) return
-      try {
-        const cached = JSON.parse(localStorage.getItem('sweatsheet:log-workout:html:v1:' + dayId) || 'null')
-        if (!cached || cached.version !== 1 || !cached.sessionHtml) return
-        const session = document.getElementById('session')
-        session.innerHTML = cached.sessionHtml
-        session.classList.remove('hidden')
-        if (cached.previousHtml) {
-          const previous = document.getElementById('previous')
-          previous.innerHTML = cached.previousHtml
-          previous.classList.remove('hidden')
-        }
-      } catch {}
-    })()
+    window.SweatSheetCache.paintHtml('log-workout:html', window.SweatSheetCache.param('day'), {
+      '#session': 'sessionHtml',
+      '#previous': 'previousHtml',
+    })
   </script>
 
   <script type="module">
@@ -193,53 +182,25 @@
     let previousSession = null
     let currentDay = null
     let sessionHandlersBound = false
-    const SESSION_DATA_CACHE = 'sweatsheet:log-workout:data:v1:'
-    const SESSION_HTML_CACHE = 'sweatsheet:log-workout:html:v1:'
-    const LOGS_DIRTY = 'sweatsheet:workout-logs:dirty:'
-
-    function navigationType() {
-      const entry = performance.getEntriesByType?.('navigation')?.[0]
-      if (entry?.type) return entry.type
-      return performance.navigation?.type === 1 ? 'reload' : 'navigate'
-    }
-
-    function isExplicitReload() {
-      return !document.wasDiscarded && navigationType() === 'reload'
-    }
-
-    function readCache(key) {
-      try { return JSON.parse(localStorage.getItem(key) || 'null') } catch { return null }
-    }
-
-    function writeCache(key, value) {
-      try { localStorage.setItem(key, JSON.stringify(value)) } catch {}
-    }
-
-    function markLogsDirty(uid) {
-      if (uid) writeCache(LOGS_DIRTY + uid, Date.now())
-    }
+    const cache = window.SweatSheetCache
 
     function saveSessionCache() {
       if (!dayId || !currentDay) return
-      writeCache(SESSION_DATA_CACHE + dayId, {
-        version: 1,
-        savedAt: Date.now(),
+      cache.write('log-workout:data', dayId, {
         day: currentDay,
         workouts,
         usersById,
         previous: previousSession,
       })
-      writeCache(SESSION_HTML_CACHE + dayId, {
-        version: 1,
-        savedAt: Date.now(),
+      cache.write('log-workout:html', dayId, {
         sessionHtml: sessionEl.innerHTML,
         previousHtml: previousEl.classList.contains('hidden') ? '' : previousEl.innerHTML,
       })
     }
 
     function restoreCachedSession(id) {
-      const cached = readCache(SESSION_DATA_CACHE + id)
-      if (!cached || cached.version !== 1 || !cached.day || String(cached.day.id) !== String(id)) return false
+      const cached = cache.read('log-workout:data', id)
+      if (!cached?.day || String(cached.day.id) !== String(id)) return false
       workouts = cached.workouts || []
       usersById = cached.usersById || {}
       renderSession(cached.day, { previous: cached.previous || null, loadPreviousSession: false })
@@ -321,7 +282,7 @@
       if (!ex) return
       ex.sweatsheet_workout_sets = [...(ex.sweatsheet_workout_sets || []), set]
       saveSessionCache()
-      markLogsDirty(userId)
+      cache.markDirty('workout-logs', userId)
     }
 
     function appendCachedExercise(exerciseId, workoutId, name, sets) {
@@ -336,7 +297,7 @@
         sweatsheet_workout_sets: sets,
       })
       saveSessionCache()
-      markLogsDirty(userId)
+      cache.markDirty('workout-logs', userId)
     }
 
     function resetSessionState() {
@@ -732,7 +693,7 @@
       if (!dayParam) { noSessionEl.classList.remove('hidden'); return }
 
       const hadCache = restoreCachedSession(dayParam)
-      if (hadCache && !isExplicitReload()) return
+      if (hadCache && !cache.isExplicitReload()) return
 
       try {
         const [users, cat] = await Promise.all([getUsers(), getWorkouts()])

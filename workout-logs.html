@@ -111,17 +111,12 @@
 
   <site-nav active="workout-logs"></site-nav>
 
+  <script src="page-cache.js"></script>
   <script>
-    (() => {
-      const userId = new URLSearchParams(location.search).get('user') || ''
-      if (!userId) return
-      try {
-        const cached = JSON.parse(localStorage.getItem('sweatsheet:workout-logs:html:v1:' + userId) || 'null')
-        if (!cached || cached.version !== 1) return
-        document.getElementById('calendar').innerHTML = cached.calendarHtml || ''
-        document.getElementById('days').innerHTML = cached.daysHtml || ''
-      } catch {}
-    })()
+    window.SweatSheetCache.paintHtml('workout-logs:html', window.SweatSheetCache.param('user'), {
+      '#calendar': 'calendarHtml',
+      '#days': 'daysHtml',
+    })
   </script>
 
   <!-- New workout session modal -->
@@ -166,47 +161,11 @@
     // Held here so createSession() can snap a typed title onto an
     // existing one (case-insensitive), keeping naming consistent.
     let pastTitles = []
-    const LOGS_DATA_CACHE = 'sweatsheet:workout-logs:data:v1:'
-    const LOGS_HTML_CACHE = 'sweatsheet:workout-logs:html:v1:'
-    const LOGS_DIRTY = 'sweatsheet:workout-logs:dirty:'
-
-    function navigationType() {
-      const entry = performance.getEntriesByType?.('navigation')?.[0]
-      if (entry?.type) return entry.type
-      return performance.navigation?.type === 1 ? 'reload' : 'navigate'
-    }
-
-    function isExplicitReload() {
-      return !document.wasDiscarded && navigationType() === 'reload'
-    }
-
-    function readCache(key) {
-      try { return JSON.parse(localStorage.getItem(key) || 'null') } catch { return null }
-    }
-
-    function writeCache(key, value) {
-      try { localStorage.setItem(key, JSON.stringify(value)) } catch {}
-    }
-
-    function removeCache(key) {
-      try { localStorage.removeItem(key) } catch {}
-    }
-
-    function logsDirtyKey(userId) {
-      return LOGS_DIRTY + userId
-    }
-
-    function logsAreDirty(userId) {
-      return !!readCache(logsDirtyKey(userId))
-    }
-
-    function markLogsDirty(userId) {
-      if (userId) writeCache(logsDirtyKey(userId), Date.now())
-    }
+    const cache = window.SweatSheetCache
 
     function restoreCachedDays(userId) {
-      const cached = readCache(LOGS_DATA_CACHE + userId)
-      if (!cached || cached.version !== 1) return false
+      const cached = cache.read('workout-logs:data', userId)
+      if (!cached) return false
       if (!Array.isArray(cached.calendarDays) || !Array.isArray(cached.logDays)) return false
       renderCalendar(cached.calendarDays)
       renderDays(cached.logDays)
@@ -215,19 +174,15 @@
 
     function writeDaysCache(userId, calendarDays, logDays) {
       if (!userId) return
-      writeCache(LOGS_DATA_CACHE + userId, {
-        version: 1,
-        savedAt: Date.now(),
+      cache.write('workout-logs:data', userId, {
         calendarDays,
         logDays,
       })
-      writeCache(LOGS_HTML_CACHE + userId, {
-        version: 1,
-        savedAt: Date.now(),
+      cache.write('workout-logs:html', userId, {
         calendarHtml: calendarEl.innerHTML,
         daysHtml: container.innerHTML,
       })
-      removeCache(logsDirtyKey(userId))
+      cache.clearDirty('workout-logs', userId)
     }
 
     function escapeHtml(str) {
@@ -531,7 +486,7 @@
           performedDate: nsDate.value,
           title,
         })
-        markLogsDirty(userFilter.value)
+        cache.markDirty('workout-logs', userFilter.value)
         // Hand off to the log page for this brand-new session.
         location.href = 'log-workout.html?day=' + encodeURIComponent(dayId)
       } catch (err) {
@@ -600,7 +555,7 @@
       // Restore the selection from the URL (e.g. after a refresh or a shared link).
       if (fromUrl && [...userFilter.options].some(o => o.value === fromUrl)) {
         userFilter.value = fromUrl
-        if (!hadCache || isExplicitReload() || logsAreDirty(fromUrl)) {
+        if (!hadCache || cache.isExplicitReload() || cache.isDirty('workout-logs', fromUrl)) {
           loadDays(fromUrl, { showLoading: !hadCache })
         }
       } else if (fromUrl) {
