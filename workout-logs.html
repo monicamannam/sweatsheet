@@ -113,6 +113,18 @@
 
   <script src="page-cache.js"></script>
   <script>
+    {
+      const cache = window.SweatSheetCache
+      const cached = cache.read('workout-users', 'all')
+      const users = Array.isArray(cached?.users) ? cached.users : []
+      const select = document.getElementById('user-filter')
+      if (users.length && select) {
+        select.replaceChildren(new Option('Select a person...', ''))
+        for (const user of users) select.appendChild(new Option(user.name, user.id))
+        select.value = cache.param('user')
+      }
+    }
+
     window.SweatSheetCache.paintHtml('workout-logs:html', window.SweatSheetCache.param('user'), {
       '#calendar': 'calendarHtml',
       '#days': 'daysHtml',
@@ -162,6 +174,21 @@
     // existing one (case-insensitive), keeping naming consistent.
     let pastTitles = []
     const cache = window.SweatSheetCache
+
+    function renderUsers(users, selectedUserId = userFilter.value) {
+      userFilter.replaceChildren(new Option('Select a person...', ''))
+      for (const u of users) userFilter.appendChild(new Option(u.name, u.id))
+      if ([...userFilter.options].some(o => o.value === selectedUserId)) {
+        userFilter.value = selectedUserId
+      }
+    }
+
+    function restoreCachedUsers(selectedUserId = '') {
+      const cached = cache.read('workout-users', 'all')
+      if (!Array.isArray(cached?.users)) return false
+      renderUsers(cached.users, selectedUserId)
+      return true
+    }
 
     function restoreCachedDays(userId) {
       const cached = cache.read('workout-logs:data', userId)
@@ -499,21 +526,24 @@
     async function init() {
       const fromUrl = getUserParam()
       const hadCache = fromUrl ? restoreCachedDays(fromUrl) : false
+      let hasUsers = restoreCachedUsers(fromUrl)
 
       try {
         const users = await getUsers()
-        for (const u of users) {
-          const opt = document.createElement('option')
-          opt.value = u.id
-          opt.textContent = u.name
-          userFilter.appendChild(opt)
-        }
+        renderUsers(users, userFilter.value || fromUrl)
+        cache.write('workout-users', 'all', { users })
+        hasUsers = true
       } catch (err) {
         console.error(err)
+        if (!hasUsers) {
+          if (!hadCache) {
+            container.innerHTML = `<div class="center-state">Couldn't load people. Check your connection and try again.</div>`
+          }
+          return
+        }
         if (!hadCache) {
           container.innerHTML = `<div class="center-state">Couldn't load people. Check your connection and try again.</div>`
         }
-        return
       }
 
       userFilter.addEventListener('change', () => {
