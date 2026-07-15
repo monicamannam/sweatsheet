@@ -309,13 +309,18 @@ export async function getWorkoutSet(setId) {
 
 // Update reps and/or weight on an existing set.
 export async function updateWorkoutSet({ setId, reps, weight }) {
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('sweatsheet_workout_sets')
     .update({
       reps:   reps   === '' || reps   == null ? null : Number(reps),
       weight: weight === '' || weight == null ? null : Number(weight),
     })
     .eq('id', setId)
+    .select('id, workout_exercise_id, set_number, reps, weight')
 
   if (error) throw error
+  if (!data?.length) {
+    throw new Error('No set was updated. Supabase may be missing an UPDATE policy for workout sets.')
+  }
+  return data[0]
 }
