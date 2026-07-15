@@ -78,7 +78,7 @@ export async function getWorkoutDays(userId) {
       sweatsheet_workout_exercises (
         id,
         sweatsheet_workouts ( name ),
-        sweatsheet_workout_sets ( set_number, reps, weight )
+        sweatsheet_workout_sets ( id, set_number, reps, weight )
       )
     `)
     .eq('user_id', userId)
@@ -116,7 +116,7 @@ export async function getWorkoutAnalyticsDays(userId, days = 90) {
           name,
           sweatsheet_categories ( id, name )
         ),
-        sweatsheet_workout_sets ( set_number, reps, weight )
+        sweatsheet_workout_sets ( id, set_number, reps, weight )
       )
     `)
     .eq('user_id', userId)
@@ -185,7 +185,7 @@ export async function getWorkoutDay(dayId) {
         id,
         exercise_id,
         sweatsheet_workouts ( name ),
-        sweatsheet_workout_sets ( set_number, reps, weight )
+        sweatsheet_workout_sets ( id, set_number, reps, weight )
       )
     `)
     .eq('id', dayId)
@@ -220,7 +220,7 @@ export async function getPreviousDayByTitle({ userId, title, excludeDayId }) {
         id,
         exercise_id,
         sweatsheet_workouts ( name ),
-        sweatsheet_workout_sets ( set_number, reps, weight )
+        sweatsheet_workout_sets ( id, set_number, reps, weight )
       )
     `)
     .eq('user_id', userId)
@@ -271,7 +271,7 @@ export async function addExerciseWithSets({ dayId, workoutId, sets = [] }) {
     const { data, error } = await supabase
       .from('sweatsheet_workout_sets')
       .insert(clean)
-      .select('set_number, reps, weight')
+      .select('id, set_number, reps, weight')
     if (error) throw error
     inserted = data ?? []
   }
@@ -288,7 +288,35 @@ export async function addSet({ exerciseId, setNumber, reps, weight }) {
       reps:   reps   === '' || reps   == null ? null : Number(reps),
       weight: weight === '' || weight == null ? null : Number(weight),
     })
-    .select('set_number, reps, weight')
+    .select('id, workout_exercise_id, set_number, reps, weight')
+    .single()
+
+  if (error) throw error
+  return data
+}
+
+// Read one set for the edit screen.
+export async function getWorkoutSet(setId) {
+  const { data, error } = await supabase
+    .from('sweatsheet_workout_sets')
+    .select('id, workout_exercise_id, set_number, reps, weight')
+    .eq('id', setId)
+    .single()
+
+  if (error) throw error
+  return data
+}
+
+// Update reps and/or weight on an existing set.
+export async function updateWorkoutSet({ setId, reps, weight }) {
+  const { data, error } = await supabase
+    .from('sweatsheet_workout_sets')
+    .update({
+      reps:   reps   === '' || reps   == null ? null : Number(reps),
+      weight: weight === '' || weight == null ? null : Number(weight),
+    })
+    .eq('id', setId)
+    .select('id, workout_exercise_id, set_number, reps, weight')
     .single()
 
   if (error) throw error

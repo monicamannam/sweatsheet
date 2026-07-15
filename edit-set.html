@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SweatSheet - Edit Set</title>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+  <script type="module" src="components.js"></script>
+
+  <style>
+    .edit-form { display: flex; flex-direction: column; gap: 14px; }
+    .field { display: flex; flex-direction: column; gap: 6px; }
+    .field label { font-weight: 600; font-size: .85rem; letter-spacing: .02em; }
+    .field input {
+      font: inherit;
+      padding: 10px 12px;
+      border: 1px solid #d8d2e6;
+      border-radius: 10px;
+      background: #fff;
+      color: inherit;
+    }
+    .field input:focus { outline: 2px solid #6c3fcf; outline-offset: 1px; }
+    .set-title { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+    .set-title .set-no { color: #6c3fcf; font-weight: 700; }
+    .form-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    .btn { font: inherit; font-weight: 600; cursor: pointer; border: none; border-radius: 10px; padding: 11px 16px; background: #6c3fcf; color: #fff; text-decoration: none; }
+    .btn:disabled { opacity: .5; cursor: default; }
+    .btn-ghost { background: transparent; color: #6c3fcf; border: 1px solid #cdbff0; }
+    .status { font-size: .9rem; }
+    .status.err { color: #c02; }
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+
+  <site-header></site-header>
+
+  <main class="page">
+    <div class="page-header">
+      <h2>Edit Set</h2>
+    </div>
+
+    <div class="panel" id="edit-panel">
+      <div class="center-state" id="loading">Loading set...</div>
+
+      <form class="edit-form hidden" id="edit-form">
+        <div class="set-title">
+          <span class="set-no" id="set-number"></span>
+          <span id="set-summary"></span>
+        </div>
+
+        <div class="field">
+          <label for="reps">Reps</label>
+          <input type="number" id="reps" min="0" step="1" inputmode="numeric" />
+        </div>
+
+        <div class="field">
+          <label for="weight">Weight</label>
+          <input type="number" id="weight" min="0" step="0.5" inputmode="decimal" />
+        </div>
+
+        <div class="form-actions">
+          <button type="submit" class="btn" id="save">Save</button>
+          <a class="btn btn-ghost" id="cancel" href="workout-logs.html">Cancel</a>
+          <span class="status" id="status"></span>
+        </div>
+      </form>
+    </div>
+  </main>
+
+  <site-nav active="log-workout"></site-nav>
+
+  <script src="page-cache.js"></script>
+  <script type="module">
+    import { getWorkoutSet, updateWorkoutSet } from './db.js'
+
+    const params = new URLSearchParams(location.search)
+    const setId = params.get('set') || ''
+    const dayId = params.get('day') || ''
+    const userId = params.get('user') || ''
+    const backHref = dayId ? 'log-workout.html?day=' + encodeURIComponent(dayId) : 'workout-logs.html'
+    const cache = window.SweatSheetCache
+
+    const loadingEl = document.getElementById('loading')
+    const form = document.getElementById('edit-form')
+    const setNumberEl = document.getElementById('set-number')
+    const setSummaryEl = document.getElementById('set-summary')
+    const repsEl = document.getElementById('reps')
+    const weightEl = document.getElementById('weight')
+    const saveBtn = document.getElementById('save')
+    const cancelLink = document.getElementById('cancel')
+    const statusEl = document.getElementById('status')
+
+    function setInputValue(input, value) {
+      input.value = value === null || value === undefined ? '' : value
+    }
+
+    function fmtSet(set) {
+      const hasReps = set.reps !== null && set.reps !== undefined
+      const hasWeight = set.weight !== null && set.weight !== undefined
+      const weight = hasWeight ? Number(set.weight) : null
+      if (hasReps && hasWeight) return `${set.reps}x${weight}`
+      if (hasReps) return String(set.reps)
+      if (hasWeight) return String(weight)
+      return 'empty'
+    }
+
+    function showError(message) {
+      loadingEl.textContent = message
+      loadingEl.classList.remove('hidden')
+      form.classList.add('hidden')
+    }
+
+    function markChanged() {
+      if (dayId) cache.markDirty('log-workout', dayId)
+      if (userId) cache.markDirty('workout-logs', userId)
+    }
+
+    async function init() {
+      cancelLink.href = backHref
+      if (!setId) {
+        showError('No set selected.')
+        return
+      }
+
+      try {
+        const set = await getWorkoutSet(setId)
+        setNumberEl.textContent = set.set_number ? `Set ${set.set_number}` : 'Set'
+        setSummaryEl.textContent = fmtSet(set)
+        setInputValue(repsEl, set.reps)
+        setInputValue(weightEl, set.weight)
+        loadingEl.classList.add('hidden')
+        form.classList.remove('hidden')
+        repsEl.focus()
+      } catch (err) {
+        console.error(err)
+        showError("Couldn't load this set. Check your connection and try again.")
+      }
+    }
+
+    form.addEventListener('submit', async e => {
+      e.preventDefault()
+      statusEl.textContent = ''
+      statusEl.className = 'status'
+      if (repsEl.value === '' && weightEl.value === '') {
+        statusEl.textContent = 'Enter reps, weight, or both.'
+        statusEl.className = 'status err'
+        return
+      }
+
+      saveBtn.disabled = true
+      try {
+        await updateWorkoutSet({ setId, reps: repsEl.value, weight: weightEl.value })
+        markChanged()
+        location.href = backHref
+      } catch (err) {
+        console.error(err)
+        statusEl.textContent = err && err.message ? `Couldn't save set - ${err.message}` : "Couldn't save set."
+        statusEl.className = 'status err'
+        saveBtn.disabled = false
+      }
+    })
+
+    init()
+  </script>
+
+</body>
+</html>

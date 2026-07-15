@@ -81,6 +81,8 @@
     .day-exercises .ex-row .ex-name { display: block; margin-bottom: 6px; }
     .day-exercises .ex-row .set-list { display: flex; flex-wrap: wrap; gap: 6px; }
     .set-list .repeat-set { align-self: center; padding: 2px 6px; }
+    .set-chip-link { border: 0; text-decoration: none; cursor: pointer; }
+    .set-chip-link:hover { filter: brightness(.96); }
 
     .hidden     { display: none; }
   </style>
@@ -196,6 +198,7 @@
         sessionHtml: sessionEl.innerHTML,
         previousHtml: previousEl.classList.contains('hidden') ? '' : previousEl.innerHTML,
       })
+      cache.clearDirty('log-workout', dayId)
     }
 
     function restoreCachedSession(id) {
@@ -203,7 +206,7 @@
       if (!cached?.day || String(cached.day.id) !== String(id)) return false
       workouts = cached.workouts || []
       usersById = cached.usersById || {}
-      renderSession(cached.day, { previous: cached.previous || null, loadPreviousSession: false })
+      renderSession(cached.day, { previous: cached.previous || null, loadPreviousSession: false, saveCache: false })
       return true
     }
 
@@ -275,6 +278,13 @@
     function markWorkoutLogged(workoutId) {
       const key = workoutKey(workoutId)
       if (key) loggedWorkoutIds.add(key)
+    }
+
+    function editSetHref(set) {
+      if (!set?.id || !dayId) return ''
+      const params = new URLSearchParams({ day: dayId, set: String(set.id) })
+      if (userId) params.set('user', userId)
+      return `edit-set.html?${params.toString()}`
     }
 
     function appendCachedSet(exerciseId, set) {
@@ -489,8 +499,14 @@
     function addSetChip(setListEl, set) {
       const empty = setListEl.querySelector('.day-empty')
       if (empty) empty.remove()
-      const chip = document.createElement('span')
+      const href = editSetHref(set)
+      const chip = document.createElement(href ? 'a' : 'span')
       chip.className = 'set-chip'
+      if (href) {
+        chip.classList.add('set-chip-link')
+        chip.href = href
+        chip.title = 'Edit set'
+      }
       chip.textContent = fmtSet(set)
       const repeat = setListEl.querySelector('.repeat-set')
       if (repeat) setListEl.insertBefore(chip, repeat)
@@ -620,7 +636,7 @@
     // rendered exactly like a day card on the Workout Logs page.
     // Best-effort: any failure just leaves the panel hidden, so the
     // core logging flow is never blocked by it.
-    function renderPrevious(prev, fallbackTitle) {
+    function renderPrevious(prev, fallbackTitle, { saveCache = true } = {}) {
       if (!prev) return
 
       setPreviousQuickAdd(prev)
@@ -642,7 +658,7 @@
       prevAgoEl.textContent   = agoLabel(prev.performed_date)
       prevExEl.innerHTML      = body
       previousEl.classList.remove('hidden')
-      saveSessionCache()
+      if (saveCache) saveSessionCache()
     }
 
     async function loadPrevious(title, excludeDayId, uid) {
@@ -657,7 +673,7 @@
       renderPrevious(prev, title)
     }
 
-    function renderSession(day, { previous = null, loadPreviousSession = true } = {}) {
+    function renderSession(day, { previous = null, loadPreviousSession = true, saveCache = true } = {}) {
       resetSessionState()
       currentDay = JSON.parse(JSON.stringify(day))
       dayId  = currentDay.id
@@ -675,8 +691,8 @@
       bindSessionHandlers()
 
       sessionEl.classList.remove('hidden')
-      if (previous) renderPrevious(previous, currentDay.title)
-      saveSessionCache()
+      if (previous) renderPrevious(previous, currentDay.title, { saveCache })
+      if (saveCache) saveSessionCache()
 
       // Show the most recent prior session with this same title underneath.
       // Fire-and-forget so it never holds up (or breaks) the editor.
@@ -693,7 +709,7 @@
       if (!dayParam) { noSessionEl.classList.remove('hidden'); return }
 
       const hadCache = restoreCachedSession(dayParam)
-      if (hadCache && !cache.isExplicitReload()) return
+      if (hadCache && !cache.isExplicitReload() && !cache.isDirty('log-workout', dayParam)) return
 
       try {
         const [users, cat] = await Promise.all([getUsers(), getWorkouts()])
