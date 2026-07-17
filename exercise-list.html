@@ -23,7 +23,6 @@
         <select id="f-category">
           <option value="">No category</option>
         </select>
-        <input type="text" id="f-desc" placeholder="Description (optional)" />
         <button type="submit" class="btn btn-primary" id="add-exercise-btn">Add Exercise</button>
       </form>
       <div class="form-msg" id="form-msg" role="status" aria-live="polite"></div>
@@ -45,12 +44,11 @@
           <tr>
             <th>Name</th>
             <th>Category</th>
-            <th>Description</th>
           </tr>
         </thead>
         <tbody id="exercise-tbody">
           <tr class="state-row">
-            <td colspan="3">
+            <td colspan="2">
               <div class="spinner"></div>
               Loading exercises…
             </td>
@@ -71,7 +69,6 @@
     const addForm        = document.getElementById('exercise-form')
     const nameInput      = document.getElementById('f-name')
     const categoryInput  = document.getElementById('f-category')
-    const descInput      = document.getElementById('f-desc')
     const addButton      = document.getElementById('add-exercise-btn')
     const formMsg        = document.getElementById('form-msg')
 
@@ -87,7 +84,7 @@
       if (!exercises.length) {
         tbody.innerHTML = `
           <tr class="state-row">
-            <td colspan="3">
+            <td colspan="2">
               No exercises found.
             </td>
           </tr>`
@@ -97,13 +94,11 @@
       tbody.innerHTML = exercises.map(ex => {
         const name = escapeHtml(ex.name)
         const cat  = ex.sweatsheet_categories?.name
-        const desc = ex.description ? escapeHtml(ex.description) : '—'
 
         return `
           <tr>
             <td data-label="Name"><span class="exercise-name">${name}</span></td>
             <td data-label="Category">${cat ? `<span class="badge">${escapeHtml(cat)}</span>` : '—'}</td>
-            <td data-label="Description"><span class="exercise-desc">${desc}</span></td>
           </tr>`
       }).join('')
     }
@@ -155,7 +150,6 @@
         const exercise = await addExercise({
           name: nameInput.value,
           categoryId: categoryInput.value,
-          description: descInput.value,
         })
         allExercises.push(exercise)
         sortExercises()
@@ -181,7 +175,7 @@
         renderTable(allExercises)
       } catch (err) {
         console.error(err)
-        tbody.innerHTML = `<tr class="state-row"><td colspan="3">Couldn't load exercises. Check your connection and try again.</td></tr>`
+        tbody.innerHTML = `<tr class="state-row"><td colspan="2">Couldn't load exercises. Check your connection and try again.</td></tr>`
       }
     }
 

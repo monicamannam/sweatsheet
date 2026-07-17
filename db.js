@@ -41,17 +41,14 @@ export async function getExercises() {
 }
 
 // Add a new exercise to the catalog.
-export async function addExercise({ name, categoryId, description }) {
+export async function addExercise({ name, categoryId }) {
   const cleanName = String(name || '').replace(/\s+/g, ' ').trim()
   if (!cleanName) throw new Error('Exercise name is required.')
-
-  const cleanDescription = String(description || '').replace(/\s+/g, ' ').trim()
   const { data, error } = await supabase
     .from('sweatsheet_workouts')
     .insert({
       name: cleanName,
       category_id: categoryId || null,
-      description: cleanDescription || null,
       deleted: false,
     })
     .select('*, sweatsheet_categories(name)')

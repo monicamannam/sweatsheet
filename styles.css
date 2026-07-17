@@ -414,7 +414,6 @@ tbody tr:hover td { background: var(--row-hover); }
   .form-grid select { min-height: 0; font-size: 14px; }
   .form-grid #f-name { flex: 2; }
   .form-grid #f-category { flex: 1; }
-  .form-grid #f-desc { flex: 3; }
 }
 
 /* ============================================================
