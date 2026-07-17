@@ -16,6 +16,18 @@
     <div class="page-header">
       <h2>Exercise List</h2>
     </div>
+    <div class="panel">
+      <h3>Add Exercise</h3>
+      <form id="exercise-form" class="form-grid">
+        <input type="text" id="f-name" placeholder="Exercise name" required />
+        <select id="f-category">
+          <option value="">No category</option>
+        </select>
+        <input type="text" id="f-desc" placeholder="Description (optional)" />
+        <button type="submit" class="btn btn-primary" id="add-exercise-btn">Add Exercise</button>
+      </form>
+      <div class="form-msg" id="form-msg" role="status" aria-live="polite"></div>
+    </div>
 
     <div class="filters">
       <div class="search-wrap">
@@ -51,11 +63,17 @@
   <site-nav active="exercise-list"></site-nav>
 
   <script type="module">
-    import { getCategories, getExercises } from './db.js'
+    import { getCategories, getExercises, addExercise } from './db.js'
 
     const tbody          = document.getElementById('exercise-tbody')
     const searchInput    = document.getElementById('search')
     const categoryFilter = document.getElementById('category-filter')
+    const addForm        = document.getElementById('exercise-form')
+    const nameInput      = document.getElementById('f-name')
+    const categoryInput  = document.getElementById('f-category')
+    const descInput      = document.getElementById('f-desc')
+    const addButton      = document.getElementById('add-exercise-btn')
+    const formMsg        = document.getElementById('form-msg')
 
     let allExercises = []
 
@@ -100,16 +118,64 @@
       }))
     }
 
+    function setFormMessage(message, isError = false) {
+      formMsg.textContent = message
+      formMsg.className = isError ? 'form-msg err' : 'form-msg'
+    }
+
+    function populateCategories(categories) {
+      for (const cat of categories) {
+        const filterOpt = document.createElement('option')
+        filterOpt.value = cat.id
+        filterOpt.textContent = cat.name
+        categoryFilter.appendChild(filterOpt)
+
+        const formOpt = document.createElement('option')
+        formOpt.value = cat.id
+        formOpt.textContent = cat.name
+        categoryInput.appendChild(formOpt)
+      }
+    }
+
+    function sortExercises() {
+      allExercises.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }))
+    }
+
+    async function handleAddExercise(e) {
+      e.preventDefault()
+      if (!nameInput.value.trim()) {
+        nameInput.focus()
+        setFormMessage('Add an exercise name first.', true)
+        return
+      }
+
+      addButton.disabled = true
+      setFormMessage('Saving...')
+      try {
+        const exercise = await addExercise({
+          name: nameInput.value,
+          categoryId: categoryInput.value,
+          description: descInput.value,
+        })
+        allExercises.push(exercise)
+        sortExercises()
+        applyFilters()
+        addForm.reset()
+        setFormMessage(`Added ${exercise.name}.`)
+        nameInput.focus()
+      } catch (err) {
+        console.error(err)
+        setFormMessage(err && err.message ? `Couldn't add exercise - ${err.message}` : "Couldn't add exercise.", true)
+      } finally {
+        addButton.disabled = false
+      }
+    }
+
     async function init() {
       try {
         const [categories, exercises] = await Promise.all([getCategories(), getExercises()])
 
-        for (const cat of categories) {
-          const opt = document.createElement('option')
-          opt.value = cat.id
-          opt.textContent = cat.name
-          categoryFilter.appendChild(opt)
-        }
+        populateCategories(categories)
 
         allExercises = exercises
         renderTable(allExercises)
@@ -121,6 +187,7 @@
 
     searchInput.addEventListener('input', applyFilters)
     categoryFilter.addEventListener('change', applyFilters)
+    addForm.addEventListener('submit', handleAddExercise)
     init()
   </script>
 

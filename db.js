@@ -40,7 +40,28 @@ export async function getExercises() {
   return data ?? []
 }
 
-// ── People (for the logs page dropdown), alphabetised ───────
+// Add a new exercise to the catalog.
+export async function addExercise({ name, categoryId, description }) {
+  const cleanName = String(name || '').replace(/\s+/g, ' ').trim()
+  if (!cleanName) throw new Error('Exercise name is required.')
+
+  const cleanDescription = String(description || '').replace(/\s+/g, ' ').trim()
+  const { data, error } = await supabase
+    .from('sweatsheet_workouts')
+    .insert({
+      name: cleanName,
+      category_id: categoryId || null,
+      description: cleanDescription || null,
+      deleted: false,
+    })
+    .select('*, sweatsheet_categories(name)')
+    .single()
+
+  if (error) throw error
+  return data
+}
+
+// People (for the logs page dropdown), alphabetised.
 export async function getUsers() {
   const { data, error } = await supabase
     .from('sweatsheet_users')

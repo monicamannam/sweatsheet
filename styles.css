@@ -406,6 +406,7 @@ tbody tr:hover td { background: var(--row-hover); }
 .form-grid input:focus,
 .form-grid select:focus { border-color: var(--primary); }
 .form-msg { margin-top: 10px; font-size: 13px; color: var(--accent); min-height: 1em; }
+.form-msg.err { color: #c02; }
 
 @media (min-width: 768px) {
   .form-grid { flex-direction: row; align-items: center; }
