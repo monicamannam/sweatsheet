@@ -40,9 +40,17 @@ export async function getExercises() {
   return data ?? []
 }
 
+function titleCaseExerciseName(name) {
+  return String(name || '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase()
+    .replace(/(^|\s)([a-z])/g, (_, prefix, letter) => prefix + letter.toUpperCase())
+}
+
 // Add a new exercise to the catalog.
 export async function addExercise({ name, categoryId }) {
-  const cleanName = String(name || '').replace(/\s+/g, ' ').trim()
+  const cleanName = titleCaseExerciseName(name)
   if (!cleanName) throw new Error('Exercise name is required.')
   const { data, error } = await supabase
     .from('sweatsheet_workouts')
