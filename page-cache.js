@@ -68,6 +68,7 @@
       const html = cached[htmlKey]
       if (!el || !html) continue
       el.innerHTML = html
+      el.querySelectorAll('button[disabled]').forEach(button => { button.disabled = false })
       el.classList?.remove('hidden')
     }
     return true

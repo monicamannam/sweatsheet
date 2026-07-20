@@ -186,6 +186,12 @@
     let sessionHandlersBound = false
     const cache = window.SweatSheetCache
 
+    function cacheableHtml(el) {
+      const copy = el.cloneNode(true)
+      copy.querySelectorAll('button[disabled]').forEach(button => { button.disabled = false })
+      return copy.innerHTML
+    }
+
     function saveSessionCache() {
       if (!dayId || !currentDay) return
       cache.write('log-workout:data', dayId, {
@@ -195,8 +201,8 @@
         previous: previousSession,
       })
       cache.write('log-workout:html', dayId, {
-        sessionHtml: sessionEl.innerHTML,
-        previousHtml: previousEl.classList.contains('hidden') ? '' : previousEl.innerHTML,
+        sessionHtml: cacheableHtml(sessionEl),
+        previousHtml: previousEl.classList.contains('hidden') ? '' : cacheableHtml(previousEl),
       })
       cache.clearDirty('log-workout', dayId)
     }
