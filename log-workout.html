@@ -184,6 +184,7 @@
     let previousSession = null
     let currentDay = null
     let sessionHandlersBound = false
+    let cachedSessionNeedsRefresh = false
     const cache = window.SweatSheetCache
 
     function cacheableHtml(el) {
@@ -207,12 +208,18 @@
       cache.clearDirty('log-workout', dayId)
     }
 
+    function hasWorkoutCategoryData(rows) {
+      if (!Array.isArray(rows) || !rows.length) return true
+      return rows.some(w => Object.prototype.hasOwnProperty.call(w, 'sweatsheet_categories'))
+    }
+
     function restoreCachedSession(id) {
       const cached = cache.read('log-workout:data', id)
       if (!cached?.day || String(cached.day.id) !== String(id)) return false
       workouts = cached.workouts || []
       usersById = cached.usersById || {}
       renderSession(cached.day, { previous: cached.previous || null, loadPreviousSession: false, saveCache: false })
+      cachedSessionNeedsRefresh = !hasWorkoutCategoryData(workouts)
       return true
     }
 
@@ -247,10 +254,41 @@
       return mo === 1 ? '1 month ago' : `${mo} months ago`
     }
 
-    function fmtSet(s) {
+    function categoryName(workout) {
+      return workout?.sweatsheet_categories?.name || ''
+    }
+
+    function isCardioCategory(name) {
+      return String(name || '').replace(/\s+/g, ' ').trim().toLowerCase() === 'cardio'
+    }
+
+    function isCardioWorkout(workout) {
+      return isCardioCategory(categoryName(workout))
+    }
+
+    function workoutForId(id) {
+      const key = workoutKey(id)
+      return workouts.find(w => workoutKey(w.id) === key)
+    }
+
+    function isCardioWorkoutId(id) {
+      return isCardioWorkout(workoutForId(id))
+    }
+
+    function isCardioExerciseRow(ex) {
+      return isCardioWorkout(ex.sweatsheet_workouts)
+    }
+
+    function fmtSet(s, isCardio = false) {
       const hasReps = s.reps !== null && s.reps !== undefined
       const hasWeight = s.weight !== null && s.weight !== undefined
       const w = hasWeight ? Number(s.weight) : null
+      if (isCardio) {
+        if (hasReps && hasWeight) return `${s.reps} min @ ${w}`
+        if (hasReps) return `${s.reps} min`
+        if (hasWeight) return `intensity ${w}`
+        return '—'
+      }
       if (hasReps && hasWeight) return `${s.reps}×${w}`
       if (hasReps) return `${s.reps}`
       if (hasWeight) return `${w}`
@@ -286,10 +324,11 @@
       if (key) loggedWorkoutIds.add(key)
     }
 
-    function editSetHref(set) {
+    function editSetHref(set, isCardio = false) {
       if (!set?.id || !dayId) return ''
       const params = new URLSearchParams({ day: dayId, set: String(set.id) })
       if (userId) params.set('user', userId)
+      if (isCardio) params.set('cardio', '1')
       return `edit-set.html?${params.toString()}`
     }
 
@@ -301,15 +340,18 @@
       cache.markDirty('workout-logs', userId)
     }
 
-    function appendCachedExercise(exerciseId, workoutId, name, sets) {
+    function appendCachedExercise(exerciseId, workout, name, sets) {
       if (!currentDay) return
       if (!Array.isArray(currentDay.sweatsheet_workout_exercises)) {
         currentDay.sweatsheet_workout_exercises = []
       }
       currentDay.sweatsheet_workout_exercises.push({
         id: exerciseId,
-        exercise_id: workoutId,
-        sweatsheet_workouts: { name },
+        exercise_id: workout?.id,
+        sweatsheet_workouts: {
+          name,
+          sweatsheet_categories: workout?.sweatsheet_categories || null,
+        },
         sweatsheet_workout_sets: sets,
       })
       saveSessionCache()
@@ -351,10 +393,12 @@
       const workoutId = workoutIdForExerciseRow(ex)
       const sets = sortedSets(ex)
       if (!workoutId || loggedWorkoutIds.has(workoutId) || !sets.length) return null
+      const isCardio = isCardioExerciseRow(ex)
       const latestSet = sets[sets.length - 1]
       if (!latestSet) return null
       return {
         workoutId,
+        isCardio,
         name: name || 'Exercise',
         set: { reps: latestSet.reps, weight: latestSet.weight },
         displaySet: latestSet,
@@ -387,15 +431,15 @@
     // Build a reps/weight input row. `onEnter` fires when Enter is pressed in
     // either field; pass `onRemove` to include an ✕ button (neither row here
     // uses one — sets are added or saved one at a time).
-    function buildSetRow({ onEnter, onRemove, values } = {}) {
+    function buildSetRow({ onEnter, onRemove, values, isCardio = false } = {}) {
       const row = document.createElement('div')
       row.className = 'set-row'
 
       const reps = document.createElement('input')
-      reps.type = 'number'; reps.min = '0'; reps.step = '1'; reps.placeholder = 'reps'; reps.className = 'reps'
+      reps.type = 'number'; reps.min = '0'; reps.step = '1'; reps.placeholder = isCardio ? 'duration' : 'reps'; reps.className = 'reps'
 
       const weight = document.createElement('input')
-      weight.type = 'number'; weight.min = '0'; weight.step = '0.5'; weight.placeholder = 'weight'; weight.className = 'weight'
+      weight.type = 'number'; weight.min = '0'; weight.step = '0.5'; weight.placeholder = isCardio ? 'intensity' : 'weight'; weight.className = 'weight'
 
       if (onEnter) {
         const onKey = e => { if (e.key === 'Enter') { e.preventDefault(); onEnter(row) } }
@@ -426,8 +470,8 @@
     }
 
     // --- the "add exercise" set row (one reps/weight row) ---
-    function addNewSetRow(focus = false, values = {}) {
-      const row = buildSetRow({ values })
+    function addNewSetRow(focus = false, values = {}, isCardio = false) {
+      const row = buildSetRow({ values, isCardio })
       newSetsEl.appendChild(row)
       if (focus) row.querySelector('.reps').focus()
       return row
@@ -450,7 +494,7 @@
 
     function fillAddSetForWorkout(workoutId) {
       newSetsEl.innerHTML = ''
-      addNewSetRow(false, previousSetsByWorkoutId.get(workoutKey(workoutId)))
+      addNewSetRow(false, previousSetsByWorkoutId.get(workoutKey(workoutId)), isCardioWorkoutId(workoutId))
     }
 
     function fillAddFormFromQuick() {
@@ -492,7 +536,7 @@
       nameEl.textContent = candidate.name
       const setEl = document.createElement('span')
       setEl.className = 'q-set'
-      setEl.textContent = fmtSet(candidate.displaySet)
+      setEl.textContent = fmtSet(candidate.displaySet, candidate.isCardio)
       btn.append(label, nameEl, setEl)
       btn.addEventListener('click', fillAddFormFromQuick)
 
@@ -502,10 +546,10 @@
     }
 
     // --- exercise cards (with inline single +Set) ---
-    function addSetChip(setListEl, set) {
+    function addSetChip(setListEl, set, isCardio = false) {
       const empty = setListEl.querySelector('.day-empty')
       if (empty) empty.remove()
-      const href = editSetHref(set)
+      const href = editSetHref(set, isCardio)
       const chip = document.createElement(href ? 'a' : 'span')
       chip.className = 'set-chip'
       if (href) {
@@ -513,13 +557,13 @@
         chip.href = href
         chip.title = 'Edit set'
       }
-      chip.textContent = fmtSet(set)
+      chip.textContent = fmtSet(set, isCardio)
       const repeat = setListEl.querySelector('.repeat-set')
       if (repeat) setListEl.insertBefore(chip, repeat)
       else setListEl.appendChild(chip)
     }
 
-    function ensureRepeatButton(setListEl, exerciseId) {
+    function ensureRepeatButton(setListEl, exerciseId, isCardio = false) {
       if (setListEl.querySelector('.repeat-set')) return
       const btn = document.createElement('button')
       btn.type = 'button'
@@ -536,7 +580,7 @@
           const set = await addSet({ exerciseId, setNumber: next, reps: last.reps, weight: last.weight })
           setCounts[exerciseId] = next
           lastSets[exerciseId] = set
-          addSetChip(setListEl, set)
+          addSetChip(setListEl, set, isCardio)
           appendCachedSet(exerciseId, set)
         } catch (err) {
           console.error(err)
@@ -549,7 +593,7 @@
       setListEl.appendChild(btn)
     }
 
-    function makeExerciseBlock(exerciseId, name, sets = [], workoutId = null) {
+    function makeExerciseBlock(exerciseId, name, sets = [], workoutId = null, isCardio = false) {
       markWorkoutLogged(workoutId || workoutIdByName(name))
       setCounts[exerciseId] = sets.reduce((m, s) => Math.max(m, s.set_number || 0), 0)
 
@@ -565,8 +609,8 @@
       if (sets.length) {
         const orderedSets = sets.slice().sort((a, b) => (a.set_number || 0) - (b.set_number || 0))
         lastSets[exerciseId] = orderedSets[orderedSets.length - 1]
-        orderedSets.forEach(s => addSetChip(setList, s))
-        ensureRepeatButton(setList, exerciseId)
+        orderedSets.forEach(s => addSetChip(setList, s, isCardio))
+        ensureRepeatButton(setList, exerciseId, isCardio)
       } else {
         delete lastSets[exerciseId]
         const none = document.createElement('span')
@@ -576,7 +620,7 @@
       block.appendChild(setList)
 
       // inline "add one set" row
-      const row = buildSetRow()
+      const row = buildSetRow({ isCardio })
       const repsI = row.querySelector('.reps')
       const weightI = row.querySelector('.weight')
       setRowValues(row, lastSets[exerciseId])
@@ -593,8 +637,8 @@
           const set = await addSet({ exerciseId, setNumber: next, reps: repsI.value, weight: weightI.value })
           setCounts[exerciseId] = next
           lastSets[exerciseId] = set
-          addSetChip(setList, set)
-          ensureRepeatButton(setList, exerciseId)
+          addSetChip(setList, set, isCardio)
+          ensureRepeatButton(setList, exerciseId, isCardio)
           setRowValues(row, set)
           appendCachedSet(exerciseId, set)
           repsI.focus()
@@ -624,11 +668,12 @@
         const { exerciseId, sets } = await addExerciseWithSets({
           dayId, workoutId, sets: readNewSets(),
         })
-        const name = exPick.selectedOptions[0].textContent
-        makeExerciseBlock(exerciseId, name, sets, workoutId)
+        const workout = workoutForId(workoutId)
+        const name = workout?.name || exPick.selectedOptions[0].textContent
+        makeExerciseBlock(exerciseId, name, sets, workoutId, isCardioWorkout(workout))
         resetAddForm()
         if (previousSession) setPreviousQuickAdd(previousSession)
-        appendCachedExercise(exerciseId, workoutId, name, sets)
+        appendCachedExercise(exerciseId, workout, name, sets)
       } catch (err) {
         console.error(err)
         exStatus.textContent = err && err.message ? `Couldn't add exercise — ${err.message}` : "Couldn't add exercise."
@@ -652,9 +697,10 @@
 
       const body = exercises.map(ex => {
         const exName = ex.sweatsheet_workouts?.name ? escapeHtml(ex.sweatsheet_workouts.name) : '—'
+        const isCardio = isCardioExerciseRow(ex)
         const sets = sortedSets(ex)
         const chips = sets.length
-          ? sets.map(s => `<span class="set-chip">${escapeHtml(fmtSet(s))}</span>`).join('')
+          ? sets.map(s => `<span class="set-chip">${escapeHtml(fmtSet(s, isCardio))}</span>`).join('')
           : `<span class="day-empty">no sets</span>`
         return `<div class="ex-row"><span class="ex-name">${exName}</span><span class="set-list">${chips}</span></div>`
       }).join('')
@@ -689,7 +735,7 @@
       const exercises = [...(currentDay.sweatsheet_workout_exercises || [])].sort((a, b) => a.id - b.id)
       for (const ex of exercises) {
         const name = ex.sweatsheet_workouts?.name || '—'
-        makeExerciseBlock(ex.id, name, ex.sweatsheet_workout_sets || [], ex.exercise_id)
+        makeExerciseBlock(ex.id, name, ex.sweatsheet_workout_sets || [], ex.exercise_id, isCardioExerciseRow(ex))
       }
 
       buildWorkoutOptions(exPick)
@@ -715,7 +761,7 @@
       if (!dayParam) { noSessionEl.classList.remove('hidden'); return }
 
       const hadCache = restoreCachedSession(dayParam)
-      if (hadCache && !cache.isExplicitReload() && !cache.isDirty('log-workout', dayParam)) return
+      if (hadCache && !cachedSessionNeedsRefresh && !cache.isExplicitReload() && !cache.isDirty('log-workout', dayParam)) return
 
       try {
         const [users, cat] = await Promise.all([getUsers(), getWorkouts()])

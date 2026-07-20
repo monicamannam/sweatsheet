@@ -103,7 +103,11 @@ export async function getWorkoutDays(userId) {
       created_at,
       sweatsheet_workout_exercises (
         id,
-        sweatsheet_workouts ( name ),
+        exercise_id,
+        sweatsheet_workouts (
+          name,
+          sweatsheet_categories ( name )
+        ),
         sweatsheet_workout_sets ( id, set_number, reps, weight )
       )
     `)
@@ -188,7 +192,7 @@ export async function getTitlesForUser(userId) {
 export async function getWorkouts() {
   const { data, error } = await supabase
     .from('sweatsheet_workouts')
-    .select('id, name')
+    .select('id, name, sweatsheet_categories(name)')
     .eq('deleted', false)
     .order('name')
 
@@ -210,7 +214,10 @@ export async function getWorkoutDay(dayId) {
       sweatsheet_workout_exercises (
         id,
         exercise_id,
-        sweatsheet_workouts ( name ),
+        sweatsheet_workouts (
+          name,
+          sweatsheet_categories ( name )
+        ),
         sweatsheet_workout_sets ( id, set_number, reps, weight )
       )
     `)
@@ -245,7 +252,10 @@ export async function getPreviousDayByTitle({ userId, title, excludeDayId }) {
       sweatsheet_workout_exercises (
         id,
         exercise_id,
-        sweatsheet_workouts ( name ),
+        sweatsheet_workouts (
+          name,
+          sweatsheet_categories ( name )
+        ),
         sweatsheet_workout_sets ( id, set_number, reps, weight )
       )
     `)

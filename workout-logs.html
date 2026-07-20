@@ -173,6 +173,7 @@
     // Held here so createSession() can snap a typed title onto an
     // existing one (case-insensitive), keeping naming consistent.
     let pastTitles = []
+    let cachedDaysNeedRefresh = false
     const cache = window.SweatSheetCache
 
     function renderUsers(users, selectedUserId = userFilter.value) {
@@ -196,6 +197,7 @@
       if (!Array.isArray(cached.calendarDays) || !Array.isArray(cached.logDays)) return false
       renderCalendar(cached.calendarDays)
       renderDays(cached.logDays)
+      cachedDaysNeedRefresh = !hasDayCategoryData(cached.logDays)
       return true
     }
 
@@ -218,6 +220,17 @@
       ))
     }
 
+    function isCardioExerciseRow(ex) {
+      const category = ex.sweatsheet_workouts?.sweatsheet_categories?.name || ''
+      return category.replace(/\s+/g, ' ').trim().toLowerCase() === 'cardio'
+    }
+
+    function hasDayCategoryData(days) {
+      const exercises = days.flatMap(day => day.sweatsheet_workout_exercises || [])
+      if (!exercises.length) return true
+      return exercises.some(ex => Object.prototype.hasOwnProperty.call(ex.sweatsheet_workouts || {}, 'sweatsheet_categories'))
+    }
+
     // Parse 'YYYY-MM-DD' as a LOCAL date (avoids the UTC day-shift).
     function fmtDate(ymd) {
       if (!ymd) return ''
@@ -234,10 +247,16 @@
       }).format(new Date())
     }
 
-    function fmtSet(s) {
+    function fmtSet(s, isCardio = false) {
       const hasReps = s.reps !== null && s.reps !== undefined
       const hasWeight = s.weight !== null && s.weight !== undefined
       const w = hasWeight ? Number(s.weight) : null     // trims trailing .00
+      if (isCardio) {
+        if (hasReps && hasWeight) return `${s.reps} min @ ${w}`
+        if (hasReps) return `${s.reps} min`
+        if (hasWeight) return `intensity ${w}`
+        return 'â€”'
+      }
       if (hasReps && hasWeight) return `${s.reps}×${w}`
       if (hasReps) return `${s.reps}`
       if (hasWeight) return `${w}`
@@ -258,10 +277,11 @@
         const body = exercises.length
           ? exercises.map(ex => {
               const exName = ex.sweatsheet_workouts?.name ? escapeHtml(ex.sweatsheet_workouts.name) : '—'
+              const isCardio = isCardioExerciseRow(ex)
               const sets = [...(ex.sweatsheet_workout_sets || [])]
                 .sort((a, b) => (a.set_number || 0) - (b.set_number || 0))
               const chips = sets.length
-                ? sets.map(s => `<span class="set-chip">${escapeHtml(fmtSet(s))}</span>`).join('')
+                ? sets.map(s => `<span class="set-chip">${escapeHtml(fmtSet(s, isCardio))}</span>`).join('')
                 : `<span class="day-empty">no sets</span>`
               return `<div class="ex-row"><span class="ex-name">${exName}</span><span class="set-list">${chips}</span></div>`
             }).join('')
@@ -585,7 +605,7 @@
       // Restore the selection from the URL (e.g. after a refresh or a shared link).
       if (fromUrl && [...userFilter.options].some(o => o.value === fromUrl)) {
         userFilter.value = fromUrl
-        if (!hadCache || cache.isExplicitReload() || cache.isDirty('workout-logs', fromUrl)) {
+        if (!hadCache || cachedDaysNeedRefresh || cache.isExplicitReload() || cache.isDirty('workout-logs', fromUrl)) {
           loadDays(fromUrl, { showLoading: !hadCache })
         }
       } else if (fromUrl) {
