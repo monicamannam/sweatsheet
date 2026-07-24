@@ -80,6 +80,10 @@
       ))
     }
 
+    function errorMessage(err, fallback) {
+      return err && err.message ? err.message : fallback
+    }
+
     function renderTable(exercises) {
       if (!exercises.length) {
         tbody.innerHTML = `
@@ -175,7 +179,7 @@
         renderTable(allExercises)
       } catch (err) {
         console.error(err)
-        tbody.innerHTML = `<tr class="state-row"><td colspan="2">Couldn't load exercises. Check your connection and try again.</td></tr>`
+        tbody.innerHTML = `<tr class="state-row"><td colspan="2">${escapeHtml(errorMessage(err, "Couldn't load exercises."))}</td></tr>`
       }
     }
 

@@ -193,8 +193,7 @@
       copy.querySelectorAll('button[disabled]').forEach(button => { button.disabled = false })
       copy.querySelectorAll('a[href]').forEach(link => {
         const url = new URL(link.getAttribute('href'), location.href)
-        url.searchParams.delete('key')
-        link.setAttribute('href', url.pathname.split('/').pop() + url.search + url.hash)
+        link.setAttribute('href', scrubbedPageHref(url))
       })
       return copy.innerHTML
     }
@@ -220,6 +219,7 @@
     }
 
     function restoreCachedSession(id) {
+      if (!cache.canRestore()) return false
       const cached = cache.read('log-workout:data', id)
       if (!cached?.day || String(cached.day.id) !== String(id)) return false
       workouts = cached.workouts || []
@@ -330,21 +330,33 @@
       if (key) loggedWorkoutIds.add(key)
     }
 
-    function addWriteKey(params) {
-      const key = new URLSearchParams(location.search).get('key')
-      if (key) params.set('key', key)
+    function currentAccessParams() {
+      const params = new URLSearchParams(location.search)
+      for (const name of ['day', 'set', 'user', 'cardio']) params.delete(name)
       return params
     }
 
-    function hrefWithWriteKey(path, params = new URLSearchParams()) {
-      const query = addWriteKey(params).toString()
+    function hrefWithAccess(path, values = {}) {
+      const params = currentAccessParams()
+      for (const [name, value] of Object.entries(values)) {
+        if (value) params.set(name, value)
+      }
+      const query = params.toString()
       return query ? path + '?' + query : path
     }
 
-    function logsHref() {
+    function scrubbedPageHref(url) {
       const params = new URLSearchParams()
-      if (userId) params.set('user', userId)
-      return hrefWithWriteKey('workout-logs.html', params)
+      for (const name of ['day', 'set', 'user', 'cardio']) {
+        const value = url.searchParams.get(name)
+        if (value) params.set(name, value)
+      }
+      const query = params.toString()
+      return url.pathname.split('/').pop() + (query ? '?' + query : '') + url.hash
+    }
+
+    function logsHref() {
+      return hrefWithAccess('workout-logs.html', { user: userId })
     }
 
     function editSetHref(set, isCardio = false) {
@@ -352,7 +364,7 @@
       const params = new URLSearchParams({ day: dayId, set: String(set.id) })
       if (userId) params.set('user', userId)
       if (isCardio) params.set('cardio', '1')
-      return hrefWithWriteKey('edit-set.html', params)
+      return hrefWithAccess('edit-set.html', Object.fromEntries(params))
     }
 
     function appendCachedSet(exerciseId, set) {

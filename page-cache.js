@@ -1,6 +1,7 @@
 (function () {
   const VERSION = 1
   const PREFIX = 'sweatsheet:'
+  const ACCESS_STORAGE_NAME = `${PREFIX}access:v${VERSION}`
 
   function key(name, id) {
     return `${PREFIX}${name}:v${VERSION}:${id}`
@@ -48,6 +49,16 @@
     return new URLSearchParams(location.search).get(name) || ''
   }
 
+  function accessSignature() {
+    const params = new URLSearchParams(location.search)
+    for (const name of ['day', 'set', 'user', 'cardio']) params.delete(name)
+    return params.toString()
+  }
+
+  function canRestore() {
+    try { return sessionStorage.getItem(ACCESS_STORAGE_NAME) === accessSignature() } catch { return false }
+  }
+
   function navigationType() {
     const entry = performance.getEntriesByType?.('navigation')?.[0]
     if (entry?.type) return entry.type
@@ -59,6 +70,7 @@
   }
 
   function paintHtml(name, id, selectors) {
+    if (!canRestore()) return false
     if (!id) return false
     const cached = read(name, id)
     if (!cached) return false
@@ -81,6 +93,7 @@
     isDirty,
     clearDirty,
     param,
+    canRestore,
     isExplicitReload,
     paintHtml,
   }

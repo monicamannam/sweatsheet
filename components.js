@@ -7,24 +7,27 @@
 
 const LINKS = [
   {
-    key: 'exercise-list', href: 'exercise-list.html', label: 'Exercises',
+    id: 'exercise-list', href: 'exercise-list.html', label: 'Exercises',
     icon: '<path d="M4 6h16M4 12h16M4 18h16"/>'
   },
   {
-    key: 'workout-logs', href: 'workout-logs.html', label: 'Logs',
+    id: 'workout-logs', href: 'workout-logs.html', label: 'Logs',
     icon: '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>'
   },
   {
-    key: 'analytics', href: 'analytics.html', label: 'Stats',
+    id: 'analytics', href: 'analytics.html', label: 'Stats',
     icon: '<path d="M3 3v18h18"/><path d="M7 16l4-4 4 4 4-6"/>'
   },
 ]
 
-function withWriteKey(href) {
-  const key = new URLSearchParams(location.search).get('key')
-  if (!key) return href
+function withCurrentAccess(href) {
+  if (!location.search) return href
   const url = new URL(href, location.href)
-  url.searchParams.set('key', key)
+  const params = new URLSearchParams(location.search)
+  for (const name of ['day', 'set', 'user', 'cardio']) params.delete(name)
+  for (const [name, value] of params) {
+    url.searchParams.set(name, value)
+  }
   return url.pathname.split('/').pop() + url.search + url.hash
 }
 
@@ -32,7 +35,7 @@ class SiteHeader extends HTMLElement {
   connectedCallback() {
     this.innerHTML = `
       <header class="site-header">
-        <a href="${withWriteKey('index.html')}" class="logo-link">
+        <a href="${withCurrentAccess('index.html')}" class="logo-link">
           <div class="logo-wrap">
             <img src="logo.png" alt="SweatSheet logo"
                  onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" />
@@ -49,7 +52,7 @@ class SiteNav extends HTMLElement {
     this.innerHTML = `
       <nav class="site-nav">
         ${LINKS.map(l => `
-          <a href="${withWriteKey(l.href)}" class="${l.key === active ? 'active' : ''}">
+          <a href="${withCurrentAccess(l.href)}" class="${l.id === active ? 'active' : ''}">
             <svg viewBox="0 0 24 24">${l.icon}</svg>
             <span>${l.label}</span>
           </a>`).join('')}

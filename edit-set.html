@@ -80,14 +80,13 @@
     const dayId = params.get('day') || ''
     const userId = params.get('user') || ''
     const isCardio = params.get('cardio') === '1'
-    const key = params.get('key') || ''
 
     function hrefWithParams(path, values = {}) {
-      const next = new URLSearchParams()
+      const next = new URLSearchParams(location.search)
+      for (const name of ['day', 'set', 'user', 'cardio']) next.delete(name)
       for (const [name, value] of Object.entries(values)) {
         if (value) next.set(name, value)
       }
-      if (key) next.set('key', key)
       const query = next.toString()
       return query ? path + '?' + query : path
     }
@@ -142,6 +141,10 @@
       form.classList.add('hidden')
     }
 
+    function errorMessage(err, fallback) {
+      return err && err.message ? err.message : fallback
+    }
+
     function markChanged() {
       if (dayId) cache.markDirty('log-workout', dayId)
       if (userId) cache.markDirty('workout-logs', userId)
@@ -166,7 +169,7 @@
         repsEl.focus()
       } catch (err) {
         console.error(err)
-        showError("Couldn't load this set. Check your connection and try again.")
+        showError(errorMessage(err, "Couldn't load this set."))
       }
     }
 

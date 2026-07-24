@@ -18,12 +18,32 @@ const { supabaseUrl, supabaseAnonKey } = await loadConfig()
 export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
 // ── Categories, alphabetised ────────────────────────────────
-async function assertCanWrite() {
-  const key = new URLSearchParams(location.search).get('key') || ''
-  const r = await fetch('/api/write-key?key=' + encodeURIComponent(key), { cache: 'no-store' })
-  if (r.ok) return
+const ACCESS_STORAGE_NAME = 'sweatsheet:access:v1'
+let accessQuery = null
+let accessPromise = null
 
-  let message = 'Write key required.'
+function accessSignature() {
+  const params = new URLSearchParams(location.search)
+  for (const name of ['day', 'set', 'user', 'cardio']) params.delete(name)
+  return params.toString()
+}
+
+async function assertCanAccess() {
+  const signature = accessSignature()
+  if (accessPromise && accessQuery === signature) return accessPromise
+  accessQuery = signature
+  accessPromise = validateAccess(signature)
+  return accessPromise
+}
+
+async function validateAccess(signature) {
+  const r = await fetch('/api/access' + (location.search || ''), { cache: 'no-store' })
+  if (r.ok) {
+    try { sessionStorage.setItem(ACCESS_STORAGE_NAME, signature) } catch {}
+    return
+  }
+
+  let message = 'Unable to load.'
   try {
     const body = await r.json()
     if (body?.error) message = body.error
@@ -32,6 +52,7 @@ async function assertCanWrite() {
 }
 
 export async function getCategories() {
+  await assertCanAccess()
   const { data, error } = await supabase
     .from('sweatsheet_categories')
     .select('id, name')
@@ -43,6 +64,7 @@ export async function getCategories() {
 
 // ── Exercises (with their category name joined in) ──────────
 export async function getExercises() {
+  await assertCanAccess()
   const { data, error } = await supabase
     .from('sweatsheet_workouts')
     .select('*, sweatsheet_categories(name)')
@@ -63,7 +85,7 @@ function titleCaseExerciseName(name) {
 
 // Add a new exercise to the catalog.
 export async function addExercise({ name, categoryId }) {
-  await assertCanWrite()
+  await assertCanAccess()
   const cleanName = titleCaseExerciseName(name)
   if (!cleanName) throw new Error('Exercise name is required.')
   const { data, error } = await supabase
@@ -82,6 +104,7 @@ export async function addExercise({ name, categoryId }) {
 
 // People (for the logs page dropdown), alphabetised.
 export async function getUsers() {
+  await assertCanAccess()
   const { data, error } = await supabase
     .from('sweatsheet_users')
     .select('id, name')
@@ -94,6 +117,7 @@ export async function getUsers() {
 // ── Workout days for ONE person (newest first) ──────────────
 // Lightweight feed for the calendar. No exercise/set join here.
 export async function getWorkoutCalendarDays(userId) {
+  await assertCanAccess()
   const { data, error } = await supabase
     .from('sweatsheet_workout_days')
     .select('id, performed_date, title, created_at')
@@ -108,6 +132,7 @@ export async function getWorkoutCalendarDays(userId) {
 // Detailed feed for the visible log list. Each day comes back with its
 // exercises and sets, capped to the latest 10 sessions.
 export async function getWorkoutDays(userId) {
+  await assertCanAccess()
   const { data, error } = await supabase
     .from('sweatsheet_workout_days')
     .select(`
@@ -137,6 +162,7 @@ export async function getWorkoutDays(userId) {
 // Detailed workout feed for analytics. Pulls the last `days` days of sessions
 // with exercise categories and sets so the page can calculate local metrics.
 export async function getWorkoutAnalyticsDays(userId, days = 90) {
+  await assertCanAccess()
   const since = new Date()
   since.setDate(since.getDate() - Math.max(0, Number(days) - 1))
   const sinceYmd = [
@@ -180,6 +206,7 @@ export async function getWorkoutAnalyticsDays(userId, days = 90) {
 // Titles are de-duplicated case-insensitively, keeping the most
 // recent spelling as the display label.
 export async function getTitlesForUser(userId) {
+  await assertCanAccess()
   const { data, error } = await supabase
     .from('sweatsheet_workout_days')
     .select('title, created_at')
@@ -204,6 +231,7 @@ export async function getTitlesForUser(userId) {
 
 // ── Exercise catalog for the picker (excludes soft-deleted) ──
 export async function getWorkouts() {
+  await assertCanAccess()
   const { data, error } = await supabase
     .from('sweatsheet_workouts')
     .select('id, name, sweatsheet_categories(name)')
@@ -218,6 +246,7 @@ export async function getWorkouts() {
 // Used by the log page to rebuild a session from the ?day= id
 // (e.g. after a refresh, or when editing from the logs page).
 export async function getWorkoutDay(dayId) {
+  await assertCanAccess()
   const { data, error } = await supabase
     .from('sweatsheet_workout_days')
     .select(`
@@ -256,6 +285,7 @@ function escapeLike(s) {
 // Matching is case-insensitive; the current day is excluded by id.
 export async function getPreviousDayByTitle({ userId, title, excludeDayId }) {
   if (!userId || !title || !String(title).trim()) return null
+  await assertCanAccess()
 
   const { data, error } = await supabase
     .from('sweatsheet_workout_days')
@@ -286,7 +316,7 @@ export async function getPreviousDayByTitle({ userId, title, excludeDayId }) {
 
 // ── Create a session (the day row only). Returns the new id. ─
 export async function createWorkoutDay({ userId, performedDate, title }) {
-  await assertCanWrite()
+  await assertCanAccess()
   const { data, error } = await supabase
     .from('sweatsheet_workout_days')
     .insert({ user_id: userId, performed_date: performedDate, title: title || null })
@@ -302,7 +332,7 @@ export async function createWorkoutDay({ userId, performedDate, title }) {
 // dropped; the rest are numbered 1..n. Returns the new exercise
 // id and the sets that were actually saved.
 export async function addExerciseWithSets({ dayId, workoutId, sets = [] }) {
-  await assertCanWrite()
+  await assertCanAccess()
   const { data: ex, error: exErr } = await supabase
     .from('sweatsheet_workout_exercises')
     .insert({ workout_day_id: dayId, exercise_id: workoutId })
@@ -332,7 +362,7 @@ export async function addExerciseWithSets({ dayId, workoutId, sets = [] }) {
 
 // ── Add a single set to an existing exercise ────────────────
 export async function addSet({ exerciseId, setNumber, reps, weight }) {
-  await assertCanWrite()
+  await assertCanAccess()
   const { data, error } = await supabase
     .from('sweatsheet_workout_sets')
     .insert({
@@ -350,6 +380,7 @@ export async function addSet({ exerciseId, setNumber, reps, weight }) {
 
 // Read one set for the edit screen.
 export async function getWorkoutSet(setId) {
+  await assertCanAccess()
   const { data, error } = await supabase
     .from('sweatsheet_workout_sets')
     .select('id, workout_exercise_id, set_number, reps, weight')
@@ -362,7 +393,7 @@ export async function getWorkoutSet(setId) {
 
 // Update reps and/or weight on an existing set.
 export async function updateWorkoutSet({ setId, reps, weight }) {
-  await assertCanWrite()
+  await assertCanAccess()
   const { data, error } = await supabase
     .from('sweatsheet_workout_sets')
     .update({

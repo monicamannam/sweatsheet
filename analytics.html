@@ -128,6 +128,10 @@
       ))
     }
 
+    function errorMessage(err, fallback) {
+      return escapeHtml(err && err.message ? err.message : fallback)
+    }
+
     function todayPacific() {
       return new Intl.DateTimeFormat('en-CA', {
         timeZone: 'America/Los_Angeles', year: 'numeric', month: '2-digit', day: '2-digit'
@@ -538,7 +542,7 @@
       } catch (err) {
         console.error(err)
         setStats()
-        content.innerHTML = '<div class="panel"><div class="analytics-empty">Could not load analytics. Check your connection and try again.</div></div>'
+        content.innerHTML = `<div class="panel"><div class="analytics-empty">${errorMessage(err, 'Could not load analytics.')}</div></div>`
       }
     }
 
@@ -558,7 +562,7 @@
         }
       } catch (err) {
         console.error(err)
-        content.innerHTML = '<div class="panel"><div class="analytics-empty">Could not load people. Check your connection and try again.</div></div>'
+        content.innerHTML = `<div class="panel"><div class="analytics-empty">${errorMessage(err, 'Could not load people.')}</div></div>`
         return
       }
 

@@ -115,7 +115,7 @@
   <script>
     {
       const cache = window.SweatSheetCache
-      const cached = cache.read('workout-users', 'all')
+      const cached = cache.canRestore() ? cache.read('workout-users', 'all') : null
       const users = Array.isArray(cached?.users) ? cached.users : []
       const select = document.getElementById('user-filter')
       if (users.length && select) {
@@ -185,6 +185,7 @@
     }
 
     function restoreCachedUsers(selectedUserId = '') {
+      if (!cache.canRestore()) return false
       const cached = cache.read('workout-users', 'all')
       if (!Array.isArray(cached?.users)) return false
       renderUsers(cached.users, selectedUserId)
@@ -192,6 +193,7 @@
     }
 
     function restoreCachedDays(userId) {
+      if (!cache.canRestore()) return false
       const cached = cache.read('workout-logs:data', userId)
       if (!cached) return false
       if (!Array.isArray(cached.calendarDays) || !Array.isArray(cached.logDays)) return false
@@ -218,6 +220,10 @@
       return String(str).replace(/[&<>"']/g, c => (
         { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
       ))
+    }
+
+    function errorMessage(err, fallback) {
+      return escapeHtml(err && err.message ? err.message : fallback)
     }
 
     function isCardioExerciseRow(ex) {
@@ -438,9 +444,17 @@
       history.replaceState(null, '', url)
     }
 
-    function hrefWithWriteKey(path, params = new URLSearchParams()) {
-      const key = new URLSearchParams(location.search).get('key')
-      if (key) params.set('key', key)
+    function currentAccessParams() {
+      const params = new URLSearchParams(location.search)
+      for (const name of ['day', 'set', 'user', 'cardio']) params.delete(name)
+      return params
+    }
+
+    function hrefWithAccess(path, values = {}) {
+      const params = currentAccessParams()
+      for (const [name, value] of Object.entries(values)) {
+        if (value) params.set(name, value)
+      }
       const query = params.toString()
       return query ? path + '?' + query : path
     }
@@ -467,7 +481,7 @@
         console.error(err)
         if (showLoading) {
           calendarEl.innerHTML = ''
-          container.innerHTML = `<div class="center-state">Couldn't load workouts. Check your connection and try again.</div>`
+          container.innerHTML = `<div class="center-state">${errorMessage(err, "Couldn't load workouts.")}</div>`
         }
       }
     }
@@ -542,7 +556,7 @@
         })
         cache.markDirty('workout-logs', userFilter.value)
         // Hand off to the log page for this brand-new session.
-        location.href = hrefWithWriteKey('log-workout.html', new URLSearchParams({ day: dayId }))
+        location.href = hrefWithAccess('log-workout.html', { day: dayId })
       } catch (err) {
         console.error(err)
         nsStatus.textContent = err && err.message ? `Couldn't create the session - ${err.message}` : "Couldn't create the session."
@@ -564,12 +578,12 @@
         console.error(err)
         if (!hasUsers) {
           if (!hadCache) {
-            container.innerHTML = `<div class="center-state">Couldn't load people. Check your connection and try again.</div>`
+            container.innerHTML = `<div class="center-state">${errorMessage(err, "Couldn't load people.")}</div>`
           }
           return
         }
         if (!hadCache) {
-          container.innerHTML = `<div class="center-state">Couldn't load people. Check your connection and try again.</div>`
+          container.innerHTML = `<div class="center-state">${errorMessage(err, "Couldn't load people.")}</div>`
         }
       }
 
@@ -589,7 +603,7 @@
       container.addEventListener('click', e => {
         const btn = e.target.closest('[data-edit-day]')
         if (!btn) return
-        location.href = hrefWithWriteKey('log-workout.html', new URLSearchParams({ day: btn.dataset.editDay }))
+        location.href = hrefWithAccess('log-workout.html', { day: btn.dataset.editDay })
       })
 
       // Tap a past-title chip to fill the input.
