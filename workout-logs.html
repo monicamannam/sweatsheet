@@ -438,6 +438,13 @@
       history.replaceState(null, '', url)
     }
 
+    function hrefWithWriteKey(path, params = new URLSearchParams()) {
+      const key = new URLSearchParams(location.search).get('key')
+      if (key) params.set('key', key)
+      const query = params.toString()
+      return query ? path + '?' + query : path
+    }
+
     function syncNewSessionBtn() {
       newSessionBtn.disabled = !userFilter.value
       newSessionBtn.title = userFilter.value ? '' : 'Pick a person first'
@@ -535,10 +542,10 @@
         })
         cache.markDirty('workout-logs', userFilter.value)
         // Hand off to the log page for this brand-new session.
-        location.href = 'log-workout.html?day=' + encodeURIComponent(dayId)
+        location.href = hrefWithWriteKey('log-workout.html', new URLSearchParams({ day: dayId }))
       } catch (err) {
         console.error(err)
-        nsStatus.textContent = "Couldn't create the session."
+        nsStatus.textContent = err && err.message ? `Couldn't create the session - ${err.message}` : "Couldn't create the session."
         nsCreate.disabled = false
       }
     }
@@ -582,7 +589,7 @@
       container.addEventListener('click', e => {
         const btn = e.target.closest('[data-edit-day]')
         if (!btn) return
-        location.href = 'log-workout.html?day=' + encodeURIComponent(btn.dataset.editDay)
+        location.href = hrefWithWriteKey('log-workout.html', new URLSearchParams({ day: btn.dataset.editDay }))
       })
 
       // Tap a past-title chip to fill the input.

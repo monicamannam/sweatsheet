@@ -20,5 +20,14 @@
 
   <site-nav active="home"></site-nav>
 
+  <script>
+    const key = new URLSearchParams(location.search).get('key')
+    const cta = document.querySelector('.cta')
+    if (key && cta) {
+      const url = new URL(cta.getAttribute('href'), location.href)
+      url.searchParams.set('key', key)
+      cta.href = url.pathname.split('/').pop() + url.search + url.hash
+    }
+  </script>
 </body>
 </html>

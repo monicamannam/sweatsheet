@@ -170,6 +170,7 @@
     const prevAgoEl   = document.getElementById('prev-ago')
     const prevExEl    = document.getElementById('prev-exercises')
     const quickAddEl  = document.getElementById('quick-add-prev')
+    const noSessionLink = noSessionEl.querySelector('a')
 
     // --- state ---
     let dayId = null
@@ -190,6 +191,11 @@
     function cacheableHtml(el) {
       const copy = el.cloneNode(true)
       copy.querySelectorAll('button[disabled]').forEach(button => { button.disabled = false })
+      copy.querySelectorAll('a[href]').forEach(link => {
+        const url = new URL(link.getAttribute('href'), location.href)
+        url.searchParams.delete('key')
+        link.setAttribute('href', url.pathname.split('/').pop() + url.search + url.hash)
+      })
       return copy.innerHTML
     }
 
@@ -324,12 +330,29 @@
       if (key) loggedWorkoutIds.add(key)
     }
 
+    function addWriteKey(params) {
+      const key = new URLSearchParams(location.search).get('key')
+      if (key) params.set('key', key)
+      return params
+    }
+
+    function hrefWithWriteKey(path, params = new URLSearchParams()) {
+      const query = addWriteKey(params).toString()
+      return query ? path + '?' + query : path
+    }
+
+    function logsHref() {
+      const params = new URLSearchParams()
+      if (userId) params.set('user', userId)
+      return hrefWithWriteKey('workout-logs.html', params)
+    }
+
     function editSetHref(set, isCardio = false) {
       if (!set?.id || !dayId) return ''
       const params = new URLSearchParams({ day: dayId, set: String(set.id) })
       if (userId) params.set('user', userId)
       if (isCardio) params.set('cardio', '1')
-      return `edit-set.html?${params.toString()}`
+      return hrefWithWriteKey('edit-set.html', params)
     }
 
     function appendCachedSet(exerciseId, set) {
@@ -383,7 +406,7 @@
       addExBtn.addEventListener('click', addExerciseHandler)
       exPick.addEventListener('change', () => fillAddSetForWorkout(exPick.value))
       viewLogsBtn.addEventListener('click', () => {
-        location.href = 'workout-logs.html' + (userId ? '?user=' + encodeURIComponent(userId) : '')
+        location.href = logsHref()
       })
       sessionHandlersBound = true
     }
@@ -758,6 +781,7 @@
 
     async function init() {
       const dayParam = new URLSearchParams(location.search).get('day')
+      if (noSessionLink) noSessionLink.href = logsHref()
       if (!dayParam) { noSessionEl.classList.remove('hidden'); return }
 
       const hadCache = restoreCachedSession(dayParam)
@@ -774,7 +798,7 @@
           noSessionEl.querySelector('.center-state').innerHTML =
             `Couldn't load this session.<br>` +
             `<small style="opacity:.7">${escapeHtml(err && err.message ? err.message : String(err))}</small><br>` +
-            `<a href="workout-logs.html">Back to Workout Logs</a>`
+            `<a href="${logsHref()}">Back to Workout Logs</a>`
           noSessionEl.classList.remove('hidden')
         }
       }

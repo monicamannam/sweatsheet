@@ -20,11 +20,19 @@ const LINKS = [
   },
 ]
 
+function withWriteKey(href) {
+  const key = new URLSearchParams(location.search).get('key')
+  if (!key) return href
+  const url = new URL(href, location.href)
+  url.searchParams.set('key', key)
+  return url.pathname.split('/').pop() + url.search + url.hash
+}
+
 class SiteHeader extends HTMLElement {
   connectedCallback() {
     this.innerHTML = `
       <header class="site-header">
-        <a href="index.html" class="logo-link">
+        <a href="${withWriteKey('index.html')}" class="logo-link">
           <div class="logo-wrap">
             <img src="logo.png" alt="SweatSheet logo"
                  onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" />
@@ -41,7 +49,7 @@ class SiteNav extends HTMLElement {
     this.innerHTML = `
       <nav class="site-nav">
         ${LINKS.map(l => `
-          <a href="${l.href}" class="${l.key === active ? 'active' : ''}">
+          <a href="${withWriteKey(l.href)}" class="${l.key === active ? 'active' : ''}">
             <svg viewBox="0 0 24 24">${l.icon}</svg>
             <span>${l.label}</span>
           </a>`).join('')}

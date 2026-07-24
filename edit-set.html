@@ -80,7 +80,21 @@
     const dayId = params.get('day') || ''
     const userId = params.get('user') || ''
     const isCardio = params.get('cardio') === '1'
-    const backHref = dayId ? 'log-workout.html?day=' + encodeURIComponent(dayId) : 'workout-logs.html'
+    const key = params.get('key') || ''
+
+    function hrefWithParams(path, values = {}) {
+      const next = new URLSearchParams()
+      for (const [name, value] of Object.entries(values)) {
+        if (value) next.set(name, value)
+      }
+      if (key) next.set('key', key)
+      const query = next.toString()
+      return query ? path + '?' + query : path
+    }
+
+    const backHref = dayId
+      ? hrefWithParams('log-workout.html', { day: dayId, user: userId })
+      : hrefWithParams('workout-logs.html', { user: userId })
     const cache = window.SweatSheetCache
 
     const loadingEl = document.getElementById('loading')
